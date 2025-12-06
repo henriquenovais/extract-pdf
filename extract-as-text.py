@@ -75,7 +75,7 @@ def extract_pdf_text(pdf_path):
     return extracted_text, num_pages
 
 
-def find_signature_patterns(page_texts, min_consecutive_pages=10, min_length=20):
+def find_signature_patterns(page_texts, min_consecutive_pages=20, min_length=20):
     """
     Find text patterns that appear in consecutive pages (likely signatures/headers/footers).
     
@@ -90,36 +90,42 @@ def find_signature_patterns(page_texts, min_consecutive_pages=10, min_length=20)
     if len(page_texts) < min_consecutive_pages:
         return []
     
-    # Extract lines from each page
-    page_lines = []
+    # Extract all potential signature lines from all pages
+    all_lines = set()
     for page_text in page_texts:
         if page_text and page_text != "[Text extraction failed for this page]":
             lines = [line.strip() for line in page_text.split('\n') if line.strip()]
-            page_lines.append(set(lines))  # Use set for faster lookup
-        else:
-            page_lines.append(set())
-    
-    # Find all unique lines that meet minimum length requirement
-    all_lines = set()
-    for lines in page_lines:
-        for line in lines:
-            if len(line) >= min_length:
-                all_lines.add(line)
+            for line in lines:
+                if len(line) >= min_length:
+                    all_lines.add(line)
     
     signature_patterns = []
     
-    # Check each line to see if it appears in consecutive pages
+    # Check each potential signature line
     for line in all_lines:
-        max_consecutive = 0
-        current_consecutive = 0
+        # Find all pages where this line appears (check if line is contained in page text)
+        pages_with_line = []
+        for page_idx, page_text in enumerate(page_texts):
+            if page_text and page_text != "[Text extraction failed for this page]":
+                # Check if the line appears anywhere in the page text
+                if line in page_text:
+                    pages_with_line.append(page_idx)
         
-        # Check each page for this line
-        for page_idx, lines in enumerate(page_lines):
-            if line in lines:
+        if not pages_with_line:
+            continue
+        
+        # Find the longest consecutive sequence
+        max_consecutive = 1
+        current_consecutive = 1
+        
+        for i in range(1, len(pages_with_line)):
+            if pages_with_line[i] == pages_with_line[i-1] + 1:
+                # Consecutive pages
                 current_consecutive += 1
                 max_consecutive = max(max_consecutive, current_consecutive)
             else:
-                current_consecutive = 0
+                # Gap found, reset counter
+                current_consecutive = 1
         
         # If this line appears in enough consecutive pages, it's a signature
         if max_consecutive >= min_consecutive_pages:
@@ -130,8 +136,7 @@ def find_signature_patterns(page_texts, min_consecutive_pages=10, min_length=20)
     
     return signature_patterns
 
-
-def apply_signature_filter(page_texts, min_consecutive_pages=10, min_length=20):
+def apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20):
     """
     Remove signature patterns that appear in consecutive pages.
     
@@ -230,7 +235,7 @@ def main():
         '--signature-filter',
         '-sf',
         action='store_true',
-        help='Enable signature filter: removes text patterns that appear on 10+ consecutive pages (like headers/footers/signatures)'
+        help='Enable signature filter: removes text patterns that appear on 20+ consecutive pages (like headers/footers/signatures)'
     )
     
     args = parser.parse_args()
@@ -244,7 +249,7 @@ def main():
         # Apply signature filter if enabled
         if args.signature_filter:
             print("Applying signature filter...")
-            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=10, min_length=20)
+            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20)
         
         # Format output with page separators
         text = format_output(page_texts, num_pages)
