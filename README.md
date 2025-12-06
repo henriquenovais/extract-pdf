@@ -36,3 +36,39 @@ This will extract all text from `document.pdf` and save it to `document.txt` in 
 - The output file will be saved in the same directory as the input PDF
 - Encrypted PDFs are not supported
 - The script processes all pages in the PDF and extracts text from each page
+
+## Format Slides
+
+The `format-slides.py` script converts raw PDF-extracted text into well-formatted markdown suitable for studying.
+
+### Usage
+
+Run the script without any arguments:
+
+```bash
+python3 format-slides.py
+```
+
+The script will:
+- Read from `slides.txt` (must exist in the current directory)
+- Format the content into markdown
+- Save the output to `slides.md` in the same directory
+
+### Example
+
+```bash
+python3 format-slides.py
+```
+
+This will format `slides.txt` and create `slides.md` with properly structured markdown content, including:
+- Slide titles as headers
+- Bullet points formatted as markdown lists
+- Code blocks for JSON content
+- URL formatting as markdown links
+- Removal of copyright notices and headers
+
+### Notes
+
+- The script expects `slides.txt` to exist in the current directory
+- The output file `slides.md` will be created or overwritten in the same directory
+- The script automatically detects slide titles, sections, and formats content appropriately
