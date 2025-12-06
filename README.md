@@ -5,6 +5,8 @@
 1. Install the required dependencies:
 
 ```bash
+python3 -m venv <virtual_environment_name>
+source <virtual_environment_name>/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -21,10 +23,10 @@ Small Python 3 script created to extract PDF contents as text. The script reads 
 Run the script with the PDF file path as an argument:
 
 ```bash
-python3 extract-as-text.py <pdf_file> [--watermark-filter]
+python3 extract-as-text.py <pdf_file> [--signature-filter]
 ```
 
-### Basic Usage (without watermark filter)
+### Basic Usage (without signature filter)
 
 ```bash
 python3 extract-as-text.py document.pdf
@@ -32,21 +34,21 @@ python3 extract-as-text.py document.pdf
 
 This will extract all text from `document.pdf` and save it to `document.txt` in the same directory. Each page will be clearly separated with headers showing the page number.
 
-### Usage with Watermark Filter
+### Usage with signature Filter
 
-To automatically remove content that appears identically in 10 or more consecutive pages (likely watermarks):
+To automatically remove content that appears identically in 10 or more consecutive pages (likely signatures):
 
 ```bash
-python3 extract-as-text.py document.pdf --watermark-filter
+python3 extract-as-text.py document.pdf --signature-filter
 ```
 
 Or use the short form:
 
 ```bash
-python3 extract-as-text.py document.pdf -w
+python3 extract-as-text.py document.pdf -sf
 ```
 
-The watermark filter detects and removes content that appears exactly the same across 10 or more consecutive pages, which is typically indicative of watermarks, headers, or footers that repeat across multiple pages.
+The signature filter detects and removes content that appears exactly the same across 10 or more consecutive pages, which is typically indicative of signatures, headers, or footers that repeat across multiple pages.
 
 ### Notes
 
@@ -55,4 +57,4 @@ The watermark filter detects and removes content that appears exactly the same a
 - Encrypted PDFs are not supported
 - The script processes all pages in the PDF and extracts text from each page
 - Each page in the output file is clearly separated with visual separators and page numbers
-- The watermark filter is optional and disabled by default
+- The signature filter is optional and disabled by default

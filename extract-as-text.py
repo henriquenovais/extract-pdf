@@ -73,16 +73,16 @@ def extract_pdf_text(pdf_path):
     return extracted_text, num_pages
 
 
-def apply_watermark_filter(page_texts, consecutive_threshold=10):
+def apply_signature_filter(page_texts, consecutive_threshold=10):
     """
-    Remove content that appears identically in consecutive pages (likely watermarks).
+    Remove content that appears identically in consecutive pages (likely signatures).
     
     Args:
         page_texts (list): List of page text strings
         consecutive_threshold (int): Number of consecutive pages with identical content to trigger filtering
         
     Returns:
-        list: Filtered page texts with watermarks removed
+        list: Filtered page texts with signatures removed
     """
     if len(page_texts) < consecutive_threshold:
         return page_texts
@@ -111,7 +111,7 @@ def apply_watermark_filter(page_texts, consecutive_threshold=10):
                 break
         
         if all_match:
-            # This content appears in at least consecutive_threshold pages - likely a watermark
+            # This content appears in at least consecutive_threshold pages - likely a signature
             # Find the full extent of the matching sequence
             end_index = i + consecutive_threshold
             while end_index < len(filtered_texts):
@@ -120,13 +120,13 @@ def apply_watermark_filter(page_texts, consecutive_threshold=10):
                 else:
                     break
             
-            # Remove the watermark content from all matching pages
+            # Remove the signature content from all matching pages
             start_page = i + 1
             end_page = end_index
-            print(f"Watermark detected: Removing identical content found in pages {start_page} to {end_page}")
+            print(f"signature detected: Removing identical content found in pages {start_page} to {end_page}")
             
             for j in range(i, end_index):
-                filtered_texts[j] = ""  # Clear the watermark content
+                filtered_texts[j] = ""  # Clear the signature content
             
             # Skip ahead past the matched pages
             i = end_index
@@ -162,17 +162,17 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract text from a PDF file and save it to a text file.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example: python3 extract-as-text.py document.pdf --watermark-filter"
+        epilog="Example: python3 extract-as-text.py document.pdf --signature-filter"
     )
     parser.add_argument(
         'pdf_file',
         help='Path to the PDF file to extract text from'
     )
     parser.add_argument(
-        '--watermark-filter',
-        '-w',
+        '--signature-filter',
+        '-sf',
         action='store_true',
-        help='Enable watermark filter: removes content that appears identically in 10 consecutive pages'
+        help='Enable signature filter: removes content that appears identically in 10 consecutive pages'
     )
     
     args = parser.parse_args()
@@ -183,10 +183,10 @@ def main():
         print(f"Extracting text from '{pdf_path}'...")
         page_texts, num_pages = extract_pdf_text(pdf_path)
         
-        # Apply watermark filter if enabled
-        if args.watermark_filter:
-            print("Applying watermark filter...")
-            page_texts = apply_watermark_filter(page_texts, consecutive_threshold=10)
+        # Apply signature filter if enabled
+        if args.signature_filter:
+            print("Applying signature filter...")
+            page_texts = apply_signature_filter(page_texts, consecutive_threshold=10)
         
         # Format output with page separators
         text = format_output(page_texts, num_pages)
