@@ -28,12 +28,40 @@ def is_copyright_line(line):
     return False
 
 
+def extract_title_from_copyright_line(line):
+    """Extract slide title from a copyright line if present."""
+    # Pattern to match copyright prefix and extract what comes after
+    # This handles various copyright formats
+    patterns = [
+        # Standard format: © Stephane MaarekNOT FOR DISTRIBUTION © Stephane Maarek www.datacumulus.com <title>
+        r'©\s*Stephane\s*MaarekNOT\s+FOR\s+DISTRIBUTION\s*©\s*Stephane\s*Maarek\s*www\.datacumulus\.com\s*(.+?)(?:•|$)',
+        # Format with links before title
+        r'©\s*Stephane\s*MaarekNOT\s+FOR\s+DISTRIBUTION\s*©\s*Stephane\s*Maarek\s*www\.datacumulus\.com\s*(?:https://links\.datacumulus\.com/[^\s]*\s*)*(.+?)(?:•|$)',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, line, re.IGNORECASE)
+        if match:
+            title = match.group(1).strip()
+            # Remove any remaining copyright fragments
+            title = re.sub(r'https://links\.datacumulus\.com/[^\s]*\s*', '', title)
+            title = re.sub(r'www\.datacumulus\.com\s*', '', title)
+            title = re.sub(r'\s+', ' ', title).strip()
+            # Only return if it looks like a title (not too long, doesn't start with bullet)
+            if title and len(title) > 2 and len(title) < 150 and not title.startswith('•'):
+                return title
+    return None
+
+
 def clean_line(line):
     """Remove copyright notices from a line while preserving content."""
     # Remove copyright prefix patterns
     line = re.sub(r'^©\s*Stephane\s*MaarekNOT\s+FOR\s+DISTRIBUTION\s*©\s*Stephane\s*Maarek\s*www\.datacumulus\.com\s*', '', line)
     line = re.sub(r'https://links\.datacumulus\.com/[^\s]*\s*', '', line)
     line = re.sub(r'www\.datacumulus\.com\s*', '', line)
+    # Remove any remaining copyright fragments
+    line = re.sub(r'©\s*Stephane\s*Maarek\s*', '', line, flags=re.IGNORECASE)
+    line = re.sub(r'NOT\s+FOR\s+DISTRIBUTION\s*', '', line, flags=re.IGNORECASE)
     
     # Clean up multiple spaces but preserve single spaces
     line = re.sub(r'\s+', ' ', line)
@@ -91,6 +119,13 @@ def is_section_header(line, context):
                 # Not a bullet point
                 if not line.startswith('•') and '•' not in line[:20]:
                     return True
+        
+        # Pattern: "Service - Subsection" or "Service: Subsection"
+        if re.match(r'^[A-Z][^•]*?\s*[-–—:]\s*[A-Z]', line) and len(line) < 100:
+            # Contains a dash or colon separating likely title parts
+            # Not ending with punctuation that suggests it's a sentence
+            if not line.endswith('.') and not line.endswith(','):
+                return True
     
     return False
 
@@ -148,6 +183,10 @@ def format_slides(input_file, output_file):
     prev_line_empty = False
     prev_line_was_copyright = False
     skip_next_empty = False
+    pending_slide_title = None  # Title extracted from copyright line
+    in_slide = False  # Track if we're inside a slide (after the main title)
+    first_slide = True  # Track if this is the first slide (no separator before)
+    previous_main_title = None  # Track previous main slide title to detect subsections
     
     i = 0
     while i < len(lines):
@@ -162,8 +201,53 @@ def format_slides(input_file, output_file):
         # Check if this is a copyright line
         is_copyright = is_copyright_line(line)
         if is_copyright:
+            # If we have a pending title from previous copyright line, process it first
+            if pending_slide_title:
+                # Determine if this should be a subsection (##) or main slide (#)
+                is_subsection = False
+                if previous_main_title:
+                    # Check if title contains a dash (e.g., "DynamoDB - Basics")
+                    if ' - ' in pending_slide_title or ' – ' in pending_slide_title:
+                        is_subsection = True
+                    else:
+                        # Check if title starts with a word from previous title
+                        prev_words = set(previous_main_title.split())
+                        current_words = set(pending_slide_title.split())
+                        # If there's significant overlap or current title starts with a prev word
+                        if current_words.intersection(prev_words):
+                            # Additional check: if current title is shorter/more specific
+                            if len(pending_slide_title) < len(previous_main_title) or \
+                               any(pending_slide_title.startswith(word) for word in prev_words if len(word) > 3):
+                                is_subsection = True
+                
+                # Add separator before new slide (except first slide and subsections)
+                if not first_slide and not is_subsection and formatted_lines and formatted_lines[-1] != '':
+                    formatted_lines.append('')
+                    formatted_lines.append('---')
+                    formatted_lines.append('')
+                first_slide = False
+                
+                # Use appropriate header level
+                if is_subsection:
+                    formatted_lines.append(f"## {pending_slide_title}")
+                    formatted_lines.append('')
+                    # Keep the same main title for subsequent checks
+                else:
+                    formatted_lines.append(f"# {pending_slide_title}")
+                    formatted_lines.append('')
+                    previous_main_title = pending_slide_title
+                in_slide = True
+            
+            # Extract title from current copyright line if present
+            extracted_title = extract_title_from_copyright_line(line)
+            if extracted_title:
+                pending_slide_title = extracted_title
+            else:
+                pending_slide_title = None
+            
             prev_line_was_copyright = True
             skip_next_empty = True
+            in_slide = False  # Reset slide state for new slide (will be set to True when title is processed)
             i += 1
             continue
         
@@ -183,16 +267,81 @@ def format_slides(input_file, output_file):
             i += 1
             continue
         
-        # After copyright, the next non-empty line is often a section header
-        if prev_line_was_copyright and is_section_header(cleaned, {'prev_empty': prev_line_empty}):
-            if formatted_lines and formatted_lines[-1] != '':
-                formatted_lines.append('')
-            formatted_lines.append(f"## {cleaned}")
-            formatted_lines.append('')
-            prev_line_empty = False
-            prev_line_was_copyright = False
-            i += 1
-            continue
+        # Handle slide title after copyright
+        if prev_line_was_copyright:
+            # Check if we have a pending title from copyright line
+            if pending_slide_title:
+                # Determine if this should be a subsection (##) or main slide (#)
+                is_subsection = False
+                if previous_main_title:
+                    # Check if title contains a dash (e.g., "DynamoDB - Basics")
+                    if ' - ' in pending_slide_title or ' – ' in pending_slide_title:
+                        is_subsection = True
+                    else:
+                        # Check if title starts with a word from previous title
+                        prev_words = set(previous_main_title.split())
+                        current_words = set(pending_slide_title.split())
+                        # If there's significant overlap or current title starts with a prev word
+                        if current_words.intersection(prev_words):
+                            # Additional check: if current title is shorter/more specific
+                            if len(pending_slide_title) < len(previous_main_title) or \
+                               any(pending_slide_title.startswith(word) for word in prev_words if len(word) > 3):
+                                is_subsection = True
+                
+                # Add separator before new slide (except first slide and subsections)
+                if not first_slide and not is_subsection and formatted_lines and formatted_lines[-1] != '':
+                    formatted_lines.append('')
+                    formatted_lines.append('---')
+                    formatted_lines.append('')
+                first_slide = False
+                
+                # Use appropriate header level
+                if is_subsection:
+                    formatted_lines.append(f"## {pending_slide_title}")
+                    formatted_lines.append('')
+                else:
+                    formatted_lines.append(f"# {pending_slide_title}")
+                    formatted_lines.append('')
+                    previous_main_title = pending_slide_title
+                pending_slide_title = None
+                in_slide = True
+                prev_line_was_copyright = False
+                i += 1
+                continue
+            # If no title extracted, check if this line is a section header
+            elif is_section_header(cleaned, {'prev_empty': prev_line_empty}):
+                # Determine if this should be a subsection
+                is_subsection = False
+                if previous_main_title:
+                    if ' - ' in cleaned or ' – ' in cleaned:
+                        is_subsection = True
+                    else:
+                        prev_words = set(previous_main_title.split())
+                        current_words = set(cleaned.split())
+                        if current_words.intersection(prev_words):
+                            if len(cleaned) < len(previous_main_title) or \
+                               any(cleaned.startswith(word) for word in prev_words if len(word) > 3):
+                                is_subsection = True
+                
+                # Add separator before new slide (except first slide and subsections)
+                if not first_slide and not is_subsection and formatted_lines and formatted_lines[-1] != '':
+                    formatted_lines.append('')
+                    formatted_lines.append('---')
+                    formatted_lines.append('')
+                first_slide = False
+                
+                # Use appropriate header level
+                if is_subsection:
+                    formatted_lines.append(f"## {cleaned}")
+                    formatted_lines.append('')
+                else:
+                    formatted_lines.append(f"# {cleaned}")
+                    formatted_lines.append('')
+                    previous_main_title = cleaned
+                in_slide = True
+                prev_line_was_copyright = False
+                i += 1
+                continue
         
         # Check if we're entering a code block (JSON)
         if is_json_code(cleaned) and not in_code_block:
@@ -236,6 +385,34 @@ def format_slides(input_file, output_file):
             i += 1
             continue
         
+        # Check if this is a subsection header (when already inside a slide)
+        if in_slide and not prev_line_was_copyright:
+            # Check if next line has content (not just empty or copyright)
+            has_content_after = False
+            next_line_idx = i + 1
+            while next_line_idx < len(lines) and next_line_idx <= i + 3:  # Check up to 3 lines ahead
+                next_line = lines[next_line_idx].strip()
+                if not next_line:
+                    next_line_idx += 1
+                    continue
+                if is_copyright_line(next_line):
+                    break
+                # Found non-empty content, this could be a subsection header
+                if len(next_line) > 5:
+                    has_content_after = True
+                    break
+                next_line_idx += 1
+            
+            if has_content_after and is_section_header(cleaned, {'prev_empty': prev_line_empty}):
+                if formatted_lines and formatted_lines[-1] != '':
+                    formatted_lines.append('')
+                formatted_lines.append(f"## {cleaned}")
+                formatted_lines.append('')
+                prev_line_empty = False
+                prev_line_was_copyright = False
+                i += 1
+                continue
+        
         # Format bullet points
         if '•' in cleaned:
             # Format URLs in the text
@@ -252,7 +429,9 @@ def format_slides(input_file, output_file):
         cleaned = format_urls(cleaned)
         
         # Check if it's a sub-header (short line, capitalized, looks like a title)
-        if (len(cleaned) < 70 and cleaned[0].isupper() and 
+        # Skip this if we're in a slide and it might be a subsection (already handled above)
+        if (not in_slide or not is_section_header(cleaned, {})) and \
+           (len(cleaned) < 70 and cleaned[0].isupper() and 
             not cleaned.endswith('.') and not cleaned.endswith(',') and
             i + 1 < len(lines) and lines[i+1].strip() and
             not any(char in cleaned for char in ['•', ':', '=']) and
@@ -260,6 +439,7 @@ def format_slides(input_file, output_file):
             # Check if next line is content (not empty, not copyright)
             next_line = lines[i+1].strip() if i+1 < len(lines) else ''
             if next_line and not is_copyright_line(next_line) and len(next_line) > 10:
+                # Use ### for minor sub-headers when not in a slide
                 formatted_lines.append(f"### {cleaned}")
                 formatted_lines.append('')
             else:
@@ -270,6 +450,34 @@ def format_slides(input_file, output_file):
         prev_line_empty = False
         prev_line_was_copyright = False
         i += 1
+    
+    # Handle any pending slide title at the end
+    if pending_slide_title:
+        # Determine if this should be a subsection
+        is_subsection = False
+        if previous_main_title:
+            if ' - ' in pending_slide_title or ' – ' in pending_slide_title:
+                is_subsection = True
+            else:
+                prev_words = set(previous_main_title.split())
+                current_words = set(pending_slide_title.split())
+                if current_words.intersection(prev_words):
+                    if len(pending_slide_title) < len(previous_main_title) or \
+                       any(pending_slide_title.startswith(word) for word in prev_words if len(word) > 3):
+                        is_subsection = True
+        
+        # Add separator before new slide (except first slide and subsections)
+        if not first_slide and not is_subsection and formatted_lines and formatted_lines[-1] != '':
+            formatted_lines.append('')
+            formatted_lines.append('---')
+            formatted_lines.append('')
+        
+        # Use appropriate header level
+        if is_subsection:
+            formatted_lines.append(f"## {pending_slide_title}")
+        else:
+            formatted_lines.append(f"# {pending_slide_title}")
+        formatted_lines.append('')
     
     # Handle any remaining code block
     if in_code_block and code_block_lines:
