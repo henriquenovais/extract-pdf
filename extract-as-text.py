@@ -7,6 +7,7 @@ Extracts all text from a PDF file and saves it to a text file.
 
 import sys
 import os
+import argparse
 from pathlib import Path
 
 try:
@@ -24,7 +25,7 @@ def extract_pdf_text(pdf_path):
         pdf_path (str): Path to the PDF file
         
     Returns:
-        str: Extracted text from all pages
+        tuple: (list of page texts, total number of pages)
         
     Raises:
         FileNotFoundError: If the PDF file doesn't exist
@@ -69,11 +70,87 @@ def extract_pdf_text(pdf_path):
     except Exception as e:
         raise Exception(f"Error reading PDF file: {e}")
     
-    # Join pages with clear separators
+    return extracted_text, num_pages
+
+
+def apply_watermark_filter(page_texts, consecutive_threshold=10):
+    """
+    Remove content that appears identically in consecutive pages (likely watermarks).
+    
+    Args:
+        page_texts (list): List of page text strings
+        consecutive_threshold (int): Number of consecutive pages with identical content to trigger filtering
+        
+    Returns:
+        list: Filtered page texts with watermarks removed
+    """
+    if len(page_texts) < consecutive_threshold:
+        return page_texts
+    
+    filtered_texts = page_texts.copy()
+    
+    # Find sequences of identical content
+    i = 0
+    while i < len(filtered_texts) - consecutive_threshold + 1:
+        # Check if the next 'consecutive_threshold' pages have identical content
+        current_text = filtered_texts[i].strip()
+        
+        # Skip if this page is empty or is an error message
+        if not current_text or current_text == "[Text extraction failed for this page]":
+            i += 1
+            continue
+        
+        # Check if the next consecutive_threshold-1 pages match
+        all_match = True
+        for j in range(1, consecutive_threshold):
+            if i + j >= len(filtered_texts):
+                all_match = False
+                break
+            if filtered_texts[i + j].strip() != current_text:
+                all_match = False
+                break
+        
+        if all_match:
+            # This content appears in at least consecutive_threshold pages - likely a watermark
+            # Find the full extent of the matching sequence
+            end_index = i + consecutive_threshold
+            while end_index < len(filtered_texts):
+                if filtered_texts[end_index].strip() == current_text:
+                    end_index += 1
+                else:
+                    break
+            
+            # Remove the watermark content from all matching pages
+            start_page = i + 1
+            end_page = end_index
+            print(f"Watermark detected: Removing identical content found in pages {start_page} to {end_page}")
+            
+            for j in range(i, end_index):
+                filtered_texts[j] = ""  # Clear the watermark content
+            
+            # Skip ahead past the matched pages
+            i = end_index
+        else:
+            i += 1
+    
+    return filtered_texts
+
+
+def format_output(page_texts, num_pages):
+    """
+    Format page texts with separators for output.
+    
+    Args:
+        page_texts (list): List of page text strings
+        num_pages (int): Total number of pages
+        
+    Returns:
+        str: Formatted text with page separators
+    """
     separator = "\n" + "=" * 60 + "\n"
     result_pages = []
     
-    for page_num, page_text in enumerate(extracted_text, start=1):
+    for page_num, page_text in enumerate(page_texts, start=1):
         page_header = f"Page {page_num} of {num_pages}"
         result_pages.append(f"{separator}{page_header}{separator}\n{page_text}")
     
@@ -82,18 +159,37 @@ def extract_pdf_text(pdf_path):
 
 def main():
     """Main function to handle command-line arguments and execute extraction."""
-    # Check for command-line argument
-    if len(sys.argv) != 2:
-        print("Usage: python3 extract-as-text.py <pdf_file>")
-        print("Example: python3 extract-as-text.py document.pdf")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Extract text from a PDF file and save it to a text file.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Example: python3 extract-as-text.py document.pdf --watermark-filter"
+    )
+    parser.add_argument(
+        'pdf_file',
+        help='Path to the PDF file to extract text from'
+    )
+    parser.add_argument(
+        '--watermark-filter',
+        '-w',
+        action='store_true',
+        help='Enable watermark filter: removes content that appears identically in 10 consecutive pages'
+    )
     
-    pdf_path = sys.argv[1]
+    args = parser.parse_args()
+    pdf_path = args.pdf_file
     
     try:
         # Extract text from PDF
         print(f"Extracting text from '{pdf_path}'...")
-        text = extract_pdf_text(pdf_path)
+        page_texts, num_pages = extract_pdf_text(pdf_path)
+        
+        # Apply watermark filter if enabled
+        if args.watermark_filter:
+            print("Applying watermark filter...")
+            page_texts = apply_watermark_filter(page_texts, consecutive_threshold=10)
+        
+        # Format output with page separators
+        text = format_output(page_texts, num_pages)
         
         # Generate output filename
         pdf_file = Path(pdf_path)
