@@ -42,6 +42,7 @@ def extract_pdf_text(pdf_path):
     
     # Extract text from PDF
     extracted_text = []
+    num_pages = 0
     
     try:
         with open(pdf_file, 'rb') as file:
@@ -61,14 +62,22 @@ def extract_pdf_text(pdf_path):
                     extracted_text.append(page_text)
                 except Exception as e:
                     print(f"Warning: Could not extract text from page {page_num}: {e}")
-                    extracted_text.append("")
+                    extracted_text.append("[Text extraction failed for this page]")
     
     except PyPDF2.errors.PdfReadError as e:
         raise PyPDF2.errors.PdfReadError(f"Error: Cannot read PDF file. {e}")
     except Exception as e:
         raise Exception(f"Error reading PDF file: {e}")
     
-    return "\n".join(extracted_text)
+    # Join pages with clear separators
+    separator = "\n" + "=" * 60 + "\n"
+    result_pages = []
+    
+    for page_num, page_text in enumerate(extracted_text, start=1):
+        page_header = f"Page {page_num} of {num_pages}"
+        result_pages.append(f"{separator}{page_header}{separator}\n{page_text}")
+    
+    return "\n".join(result_pages)
 
 
 def main():
