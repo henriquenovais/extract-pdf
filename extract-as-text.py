@@ -75,33 +75,54 @@ def extract_pdf_text(pdf_path):
     return extracted_text, num_pages
 
 
-def find_signature_patterns(page_texts, min_occurrences=10, min_length=20):
+def find_signature_patterns(page_texts, min_consecutive_pages=10, min_length=20):
     """
-    Find text patterns that appear frequently across pages (likely signatures/headers/footers).
+    Find text patterns that appear in consecutive pages (likely signatures/headers/footers).
     
     Args:
         page_texts (list): List of page text strings
-        min_occurrences (int): Minimum number of pages a pattern must appear on to be considered a signature
+        min_consecutive_pages (int): Minimum number of consecutive pages a pattern must appear on to be considered a signature
         min_length (int): Minimum length of text to be considered a signature pattern
         
     Returns:
         list: List of signature patterns to remove
     """
-    # Collect all text lines from all pages
-    all_lines = []
+    if len(page_texts) < min_consecutive_pages:
+        return []
+    
+    # Extract lines from each page
+    page_lines = []
     for page_text in page_texts:
         if page_text and page_text != "[Text extraction failed for this page]":
-            # Split into lines and clean them
             lines = [line.strip() for line in page_text.split('\n') if line.strip()]
-            all_lines.extend(lines)
+            page_lines.append(set(lines))  # Use set for faster lookup
+        else:
+            page_lines.append(set())
     
-    # Count occurrences of each line
-    line_counts = Counter(all_lines)
+    # Find all unique lines that meet minimum length requirement
+    all_lines = set()
+    for lines in page_lines:
+        for line in lines:
+            if len(line) >= min_length:
+                all_lines.add(line)
     
-    # Find lines that appear frequently and are long enough to be signatures
     signature_patterns = []
-    for line, count in line_counts.items():
-        if count >= min_occurrences and len(line) >= min_length:
+    
+    # Check each line to see if it appears in consecutive pages
+    for line in all_lines:
+        max_consecutive = 0
+        current_consecutive = 0
+        
+        # Check each page for this line
+        for page_idx, lines in enumerate(page_lines):
+            if line in lines:
+                current_consecutive += 1
+                max_consecutive = max(max_consecutive, current_consecutive)
+            else:
+                current_consecutive = 0
+        
+        # If this line appears in enough consecutive pages, it's a signature
+        if max_consecutive >= min_consecutive_pages:
             signature_patterns.append(line)
     
     # Sort by length (longest first) to remove longer patterns first
@@ -110,23 +131,23 @@ def find_signature_patterns(page_texts, min_occurrences=10, min_length=20):
     return signature_patterns
 
 
-def apply_signature_filter(page_texts, min_occurrences=10, min_length=20):
+def apply_signature_filter(page_texts, min_consecutive_pages=10, min_length=20):
     """
-    Remove signature patterns that appear frequently across pages.
+    Remove signature patterns that appear in consecutive pages.
     
     Args:
         page_texts (list): List of page text strings
-        min_occurrences (int): Minimum number of pages a pattern must appear on to be considered a signature
+        min_consecutive_pages (int): Minimum number of consecutive pages a pattern must appear on to be considered a signature
         min_length (int): Minimum length of text to be considered a signature pattern
         
     Returns:
         list: Filtered page texts with signatures removed
     """
-    if len(page_texts) < min_occurrences:
+    if len(page_texts) < min_consecutive_pages:
         return page_texts
     
     # Find signature patterns
-    signature_patterns = find_signature_patterns(page_texts, min_occurrences, min_length)
+    signature_patterns = find_signature_patterns(page_texts, min_consecutive_pages, min_length)
     
     if not signature_patterns:
         print("No signature patterns detected.")
@@ -209,7 +230,7 @@ def main():
         '--signature-filter',
         '-sf',
         action='store_true',
-        help='Enable signature filter: removes text patterns that appear on 10+ pages (like headers/footers/signatures)'
+        help='Enable signature filter: removes text patterns that appear on 10+ consecutive pages (like headers/footers/signatures)'
     )
     
     args = parser.parse_args()
@@ -223,7 +244,7 @@ def main():
         # Apply signature filter if enabled
         if args.signature_filter:
             print("Applying signature filter...")
-            page_texts = apply_signature_filter(page_texts, min_occurrences=10, min_length=20)
+            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=10, min_length=20)
         
         # Format output with page separators
         text = format_output(page_texts, num_pages)
