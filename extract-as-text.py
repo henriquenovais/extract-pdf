@@ -9,6 +9,8 @@ import sys
 import os
 import argparse
 from pathlib import Path
+from collections import Counter
+import re
 
 try:
     import PyPDF2
@@ -73,66 +75,101 @@ def extract_pdf_text(pdf_path):
     return extracted_text, num_pages
 
 
-def apply_signature_filter(page_texts, consecutive_threshold=10):
+def find_signature_patterns(page_texts, min_occurrences=10, min_length=20):
     """
-    Remove content that appears identically in consecutive pages (likely signatures).
+    Find text patterns that appear frequently across pages (likely signatures/headers/footers).
     
     Args:
         page_texts (list): List of page text strings
-        consecutive_threshold (int): Number of consecutive pages with identical content to trigger filtering
+        min_occurrences (int): Minimum number of pages a pattern must appear on to be considered a signature
+        min_length (int): Minimum length of text to be considered a signature pattern
+        
+    Returns:
+        list: List of signature patterns to remove
+    """
+    # Collect all text lines from all pages
+    all_lines = []
+    for page_text in page_texts:
+        if page_text and page_text != "[Text extraction failed for this page]":
+            # Split into lines and clean them
+            lines = [line.strip() for line in page_text.split('\n') if line.strip()]
+            all_lines.extend(lines)
+    
+    # Count occurrences of each line
+    line_counts = Counter(all_lines)
+    
+    # Find lines that appear frequently and are long enough to be signatures
+    signature_patterns = []
+    for line, count in line_counts.items():
+        if count >= min_occurrences and len(line) >= min_length:
+            signature_patterns.append(line)
+    
+    # Sort by length (longest first) to remove longer patterns first
+    signature_patterns.sort(key=len, reverse=True)
+    
+    return signature_patterns
+
+
+def apply_signature_filter(page_texts, min_occurrences=10, min_length=20):
+    """
+    Remove signature patterns that appear frequently across pages.
+    
+    Args:
+        page_texts (list): List of page text strings
+        min_occurrences (int): Minimum number of pages a pattern must appear on to be considered a signature
+        min_length (int): Minimum length of text to be considered a signature pattern
         
     Returns:
         list: Filtered page texts with signatures removed
     """
-    if len(page_texts) < consecutive_threshold:
+    if len(page_texts) < min_occurrences:
         return page_texts
     
-    filtered_texts = page_texts.copy()
+    # Find signature patterns
+    signature_patterns = find_signature_patterns(page_texts, min_occurrences, min_length)
     
-    # Find sequences of identical content
-    i = 0
-    while i < len(filtered_texts) - consecutive_threshold + 1:
-        # Check if the next 'consecutive_threshold' pages have identical content
-        current_text = filtered_texts[i].strip()
-        
-        # Skip if this page is empty or is an error message
-        if not current_text or current_text == "[Text extraction failed for this page]":
-            i += 1
+    if not signature_patterns:
+        print("No signature patterns detected.")
+        return page_texts
+    
+    print(f"Detected {len(signature_patterns)} signature pattern(s):")
+    for i, pattern in enumerate(signature_patterns, 1):
+        # Truncate long patterns for display
+        display_pattern = pattern[:100] + "..." if len(pattern) > 100 else pattern
+        print(f"  {i}. \"{display_pattern}\"")
+    
+    # Remove signature patterns from all pages
+    filtered_texts = []
+    total_removals = 0
+    
+    for page_num, page_text in enumerate(page_texts, start=1):
+        if not page_text or page_text == "[Text extraction failed for this page]":
+            filtered_texts.append(page_text)
             continue
         
-        # Check if the next consecutive_threshold-1 pages match
-        all_match = True
-        for j in range(1, consecutive_threshold):
-            if i + j >= len(filtered_texts):
-                all_match = False
-                break
-            if filtered_texts[i + j].strip() != current_text:
-                all_match = False
-                break
+        filtered_text = page_text
+        page_removals = 0
         
-        if all_match:
-            # This content appears in at least consecutive_threshold pages - likely a signature
-            # Find the full extent of the matching sequence
-            end_index = i + consecutive_threshold
-            while end_index < len(filtered_texts):
-                if filtered_texts[end_index].strip() == current_text:
-                    end_index += 1
-                else:
-                    break
+        # Remove each signature pattern
+        for pattern in signature_patterns:
+            # Use regex to remove the pattern (case-sensitive, exact match)
+            pattern_escaped = re.escape(pattern)
+            old_text = filtered_text
+            filtered_text = re.sub(pattern_escaped, '', filtered_text)
             
-            # Remove the signature content from all matching pages
-            start_page = i + 1
-            end_page = end_index
-            print(f"signature detected: Removing identical content found in pages {start_page} to {end_page}")
-            
-            for j in range(i, end_index):
-                filtered_texts[j] = ""  # Clear the signature content
-            
-            # Skip ahead past the matched pages
-            i = end_index
-        else:
-            i += 1
+            # Count how many times the pattern was removed from this page
+            removals = old_text.count(pattern) - filtered_text.count(pattern)
+            page_removals += removals
+        
+        # Clean up extra whitespace and empty lines
+        lines = [line.strip() for line in filtered_text.split('\n')]
+        lines = [line for line in lines if line]  # Remove empty lines
+        filtered_text = '\n'.join(lines)
+        
+        filtered_texts.append(filtered_text)
+        total_removals += page_removals
     
+    print(f"Removed {total_removals} signature occurrences across all pages.")
     return filtered_texts
 
 
@@ -172,7 +209,7 @@ def main():
         '--signature-filter',
         '-sf',
         action='store_true',
-        help='Enable signature filter: removes content that appears identically in 10 consecutive pages'
+        help='Enable signature filter: removes text patterns that appear on 10+ pages (like headers/footers/signatures)'
     )
     
     args = parser.parse_args()
@@ -186,7 +223,7 @@ def main():
         # Apply signature filter if enabled
         if args.signature_filter:
             print("Applying signature filter...")
-            page_texts = apply_signature_filter(page_texts, consecutive_threshold=10)
+            page_texts = apply_signature_filter(page_texts, min_occurrences=10, min_length=20)
         
         # Format output with page separators
         text = format_output(page_texts, num_pages)
@@ -218,4 +255,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
