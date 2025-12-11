@@ -225,11 +225,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract text from a PDF file and save it to a text file.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-            Examples:
-            python3 extract-as-text.py document.pdf
-            python3 extract-as-text.py document.pdf --signature-filter
-            python3 extract-as-text.py document.pdf --signature-filter --min-length 30
+        epilog=
+        """Examples:
+        python3 extract-as-text.py document.pdf
+        python3 extract-as-text.py document.pdf --signature-filter
+        python3 extract-as-text.py document.pdf --signature-filter --min-length 30
+        python3 extract-as-text.py document.pdf --signature-filter --min-pages 15
+        python3 extract-as-text.py document.pdf -sf -ml 25 -mp 10
         """
     )
     parser.add_argument(
@@ -240,7 +242,7 @@ def main():
         '--signature-filter',
         '-sf',
         action='store_true',
-        help='Enable signature filter: removes text patterns that appear on 20+ consecutive pages (like headers/footers/signatures)'
+        help='Enable signature filter: removes text patterns that appear on consecutive pages (like headers/footers/signatures)'
     )
     parser.add_argument(
         '--min-length',
@@ -249,14 +251,26 @@ def main():
         default=20,
         help='Minimum length of text to be considered a signature pattern (default: 20)'
     )
+    parser.add_argument(
+        '--min-pages',
+        '-mp',
+        type=int,
+        default=20,
+        help='Minimum number of consecutive pages a pattern must appear on to be considered a signature (default: 20)'
+    )
     
     args = parser.parse_args()
     pdf_path = args.pdf_file
     min_length = args.min_length
+    min_pages = args.min_pages
     
-    # Validate min_length
+    # Validate arguments
     if min_length < 1:
         print("Error: Minimum length must be at least 1.")
+        sys.exit(1)
+    
+    if min_pages < 1:
+        print("Error: Minimum pages must be at least 1.")
         sys.exit(1)
     
     try:
@@ -266,8 +280,8 @@ def main():
         
         # Apply signature filter if enabled
         if args.signature_filter:
-            print(f"Applying signature filter (min length: {min_length})...")
-            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=min_length)
+            print(f"Applying signature filter (min length: {min_length}, min consecutive pages: {min_pages})...")
+            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=min_pages, min_length=min_length)
         
         # Format output with page separators
         text = format_output(page_texts, num_pages)
