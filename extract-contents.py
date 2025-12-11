@@ -197,37 +197,6 @@ def apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20):
     print(f"Removed {total_removals} signature occurrences across all pages.")
     return filtered_texts
 
-
-def clean_text_for_markdown(text):
-    """
-    Clean text for markdown output without adding headers.
-    
-    Args:
-        text (str): Raw text to clean
-        
-    Returns:
-        str: Cleaned text
-    """
-    if not text or text == "[Text extraction failed for this page]":
-        return text
-    
-    lines = text.split('\n')
-    cleaned_lines = []
-    
-    for line in lines:
-        # Strip whitespace but preserve the line structure
-        cleaned_line = line.rstrip()
-        cleaned_lines.append(cleaned_line)
-    
-    # Join lines and clean up excessive empty lines
-    result = '\n'.join(cleaned_lines)
-    
-    # Replace multiple consecutive empty lines with just two (for paragraph separation)
-    result = re.sub(r'\n\s*\n\s*\n+', '\n\n', result)
-    
-    return result.strip()
-
-
 def format_output_text(page_texts, num_pages):
     """
     Format page texts with separators for text output.
@@ -278,8 +247,7 @@ def format_output_markdown(page_texts, num_pages, pdf_filename):
         
         # Clean text without adding automatic headers
         if page_text and page_text != "[Text extraction failed for this page]":
-            cleaned_text = clean_text_for_markdown(page_text)
-            result.append(cleaned_text)
+            result.append(page_text)
         else:
             result.append("*[Text extraction failed for this page]*")
         
