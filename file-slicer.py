@@ -249,11 +249,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Examples:
-        python3 breakdown-content.py slides.md --keywords "AWS,EC2,IAM"
-        python3 breakdown-content.py slides.txt --keywords-file keywords.txt
-        python3 breakdown-content.py slides.md -k "S3,Lambda" --format text --case-sensitive
-        python3 breakdown-content.py slides.txt -kf keywords.txt -f md --output-dir output/
-        python3 breakdown-content.py slides.txt -kf keywords.txt -f md -o output/
+        python3 file-slicer.py slides.md --keywords "AWS,EC2,IAM"
+        python3 file-slicer.py slides.txt --keywords-file keywords.txt
+        python3 file-slicer.py slides.md -k "S3,Lambda" --format text --case-sensitive
+        python3 file-slicer.py slides.txt -kf keywords.txt -f md --output-dir output/
+        python3 file-slicer.py slides.txt -kf keywords.txt -f md -o output/
         """
     )
     
