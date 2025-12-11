@@ -253,6 +253,7 @@ def main():
         python3 breakdown-content.py slides.txt --keywords-file keywords.txt
         python3 breakdown-content.py slides.md -k "S3,Lambda" --format text --case-sensitive
         python3 breakdown-content.py slides.txt -kf keywords.txt -f md --output-dir output/
+        python3 breakdown-content.py slides.txt -kf keywords.txt -f md -o output/
         """
     )
     
