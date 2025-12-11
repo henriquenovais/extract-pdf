@@ -411,16 +411,23 @@ def format_output(page_texts, num_pages):
 
 ---
 
-## Function: `main()` (Lines 223-268)
+## Function: `main()` (Lines 223-310)
 
-### Argument Parser Setup (Lines 224-242)
+### Argument Parser Setup (Lines 224-260)
 
 ```python
 """Main function to handle command-line arguments and execute extraction."""
 parser = argparse.ArgumentParser(
     description="Extract text from a PDF file and save it to a text file.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog="Example: python3 extract-as-text.py document.pdf --signature-filter"
+    epilog=
+    """Examples:
+    python3 extract-as-text.py document.pdf
+    python3 extract-as-text.py document.pdf --signature-filter
+    python3 extract-as-text.py document.pdf --signature-filter --min-length 30
+    python3 extract-as-text.py document.pdf --signature-filter --min-pages 15
+    python3 extract-as-text.py document.pdf -sf -ml 25 -mp 10
+    """
 )
 parser.add_argument(
     'pdf_file',
@@ -430,21 +437,58 @@ parser.add_argument(
     '--signature-filter',
     '-sf',
     action='store_true',
-    help='Enable signature filter: removes text patterns that appear on 20+ consecutive pages (like headers/footers/signatures)'
+    help='Enable signature filter: removes text patterns that appear on consecutive pages (like headers/footers/signatures)'
 )
-
-args = parser.parse_args()
-pdf_path = args.pdf_file
+parser.add_argument(
+    '--min-length',
+    '-ml',
+    type=int,
+    default=20,
+    help='Minimum length of text to be considered a signature pattern (default: 20)'
+)
+parser.add_argument(
+    '--min-pages',
+    '-mp',
+    type=int,
+    default=20,
+    help='Minimum number of consecutive pages a pattern must appear on to be considered a signature (default: 20)'
+)
 ```
 
-**Argument Configuration:**
+**Enhanced Argument Configuration:**
 1. **Parser Creation**: Uses `argparse` for professional command-line interface
-2. **Description**: Provides clear description of script purpose
+2. **Rich Examples**: Comprehensive usage examples in epilog
 3. **Positional Argument**: `pdf_file` is required argument for input file
-4. **Optional Flag**: `--signature-filter` enables signature removal feature
-5. **Help Text**: Detailed help messages for user guidance
+4. **Signature Filter Flag**: `--signature-filter` enables signature removal feature
+5. **Configurable Parameters**: New arguments for customizing signature detection:
+   - `--min-length` (`-ml`): Controls minimum text length for signature patterns
+   - `--min-pages` (`-mp`): Controls minimum consecutive pages threshold
+6. **Help Text**: Detailed help messages with defaults for user guidance
 
-### Extraction Execution (Lines 245-268)
+### Argument Parsing and Validation (Lines 262-276)
+
+```python
+args = parser.parse_args()
+pdf_path = args.pdf_file
+min_length = args.min_length
+min_pages = args.min_pages
+
+# Validate arguments
+if min_length < 1:
+    print("Error: Minimum length must be at least 1.")
+    sys.exit(1)
+
+if min_pages < 1:
+    print("Error: Minimum pages must be at least 1.")
+    sys.exit(1)
+```
+
+**Validation Process:**
+1. **Argument Extraction**: Retrieves parsed arguments from argparse
+2. **Parameter Validation**: Ensures minimum length and pages are positive integers
+3. **Early Exit**: Exits with error code 1 if validation fails
+
+### Extraction Execution (Lines 278-310)
 
 ```python
 try:
@@ -454,8 +498,8 @@ try:
     
     # Apply signature filter if enabled
     if args.signature_filter:
-        print("Applying signature filter...")
-        page_texts = apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20)
+        print(f"Applying signature filter (min length: {min_length}, min consecutive pages: {min_pages})...")
+        page_texts = apply_signature_filter(page_texts, min_consecutive_pages=min_pages, min_length=min_length)
     
     # Format output with page separators
     text = format_output(page_texts, num_pages)
@@ -485,18 +529,19 @@ except Exception as e:
     sys.exit(1)
 ```
 
-**Execution Flow:**
+**Enhanced Execution Flow:**
 1. **Text Extraction**: Calls core extraction function
-2. **Conditional Filtering**: Applies signature filter if requested
-3. **Output Formatting**: Formats text with page separators
-4. **File Generation**: Creates output filename by changing extension
-5. **File Writing**: Saves formatted text with UTF-8 encoding
-6. **User Feedback**: Provides success confirmation and statistics
-7. **Error Handling**: Comprehensive exception handling with appropriate exit codes
+2. **Conditional Filtering**: Applies signature filter with user-specified parameters if requested
+3. **Parameter Display**: Shows the actual parameters being used for signature filtering
+4. **Output Formatting**: Formats text with page separators
+5. **File Generation**: Creates output filename by changing extension
+6. **File Writing**: Saves formatted text with UTF-8 encoding
+7. **User Feedback**: Provides success confirmation and statistics
+8. **Error Handling**: Comprehensive exception handling with appropriate exit codes
 
 ---
 
-## Script Entry Point (Lines 271-272)
+## Script Entry Point (Lines 313-314)
 
 ```python
 if __name__ == "__main__":
@@ -512,14 +557,16 @@ if __name__ == "__main__":
 
 ### 1. **Enhanced Command-Line Interface**
 - **Modern Argument Parsing**: Uses `argparse` instead of manual `sys.argv` handling
-- **Optional Features**: Signature filter is optional via command-line flag
-- **Professional Help**: Automatic help generation with usage examples
+- **Configurable Parameters**: Users can now customize signature detection thresholds
+- **Rich Examples**: Comprehensive usage examples showing all options
+- **Short Form Flags**: Convenient abbreviated options (`-sf`, `-ml`, `-mp`)
+- **Professional Help**: Automatic help generation with usage examples and defaults
 
-### 2. **Signature Detection Algorithm**
-- **Pattern Recognition**: Automatically detects repetitive text across pages
-- **Configurable Thresholds**: Adjustable parameters for different document types
-- **Smart Removal**: Uses regex for precise pattern removal
-- **User Feedback**: Shows detected patterns and removal statistics
+### 2. **Configurable Signature Detection Algorithm**
+- **Adjustable Thresholds**: Both minimum length and consecutive pages are now configurable
+- **Parameter Validation**: Ensures user inputs are valid before processing
+- **User Feedback**: Shows actual parameters being used during processing
+- **Flexible Usage**: Allows adaptation to different document types and user needs
 
 ### 3. **Improved Output Format**
 - **Page Separation**: Clear visual separation between pages
@@ -530,11 +577,13 @@ if __name__ == "__main__":
 - **Graceful Degradation**: Continues processing despite individual page failures
 - **Comprehensive Coverage**: Handles all expected exception types
 - **Clear Messages**: Descriptive error messages for troubleshooting
+- **Input Validation**: Validates user parameters before processing
 
 ### 5. **Modular Design**
 - **Separation of Concerns**: Each function has a single, clear responsibility
 - **Reusable Components**: Functions can be used independently
 - **Testable Code**: Modular structure facilitates unit testing
+- **Parameter Passing**: Consistent parameter handling throughout the pipeline
 
 ---
 
@@ -577,27 +626,65 @@ The signature detection algorithm works in several phases:
 python3 extract-as-text.py document.pdf
 ```
 
-### With Signature Filter
+### With Signature Filter (Default Settings)
 ```bash
 python3 extract-as-text.py document.pdf --signature-filter
 ```
 
-### Short Form Flag
+### Custom Signature Detection Parameters
 ```bash
-python3 extract-as-text.py document.pdf -sf
+# More sensitive detection (shorter patterns, fewer pages)
+python3 extract-as-text.py document.pdf --signature-filter --min-length 15 --min-pages 10
+
+# Less sensitive detection (longer patterns, more pages)
+python3 extract-as-text.py document.pdf --signature-filter --min-length 30 --min-pages 25
 ```
+
+### Short Form Flags
+```bash
+# Equivalent to the above examples
+python3 extract-as-text.py document.pdf -sf -ml 15 -mp 10
+python3 extract-as-text.py document.pdf -sf -ml 30 -mp 25
+```
+
+### Help and Documentation
+```bash
+python3 extract-as-text.py --help
+```
+
+---
+
+## Parameter Tuning Guidelines
+
+### Minimum Length (`--min-length`)
+- **Lower values (10-15)**: Detect shorter patterns like page numbers, simple headers
+- **Default (20)**: Good balance for most documents
+- **Higher values (30-50)**: Focus on longer, more substantial patterns like full headers/footers
+
+### Minimum Pages (`--min-pages`)
+- **Lower values (5-10)**: More aggressive filtering, suitable for shorter documents
+- **Default (20)**: Conservative approach, good for longer documents
+- **Higher values (30+)**: Very conservative, only removes patterns in very long documents
+
+### Document Type Recommendations
+- **Academic Papers**: `--min-length 25 --min-pages 15` (capture citation formats, headers)
+- **Legal Documents**: `--min-length 30 --min-pages 20` (capture case headers, firm signatures)
+- **Technical Manuals**: `--min-length 15 --min-pages 10` (capture section headers, page numbers)
+- **Books/Novels**: `--min-length 20 --min-pages 25` (capture chapter headers, page numbers)
 
 ---
 
 ## Summary
 
-This enhanced script demonstrates advanced Python practices:
+This enhanced script demonstrates advanced Python practices with significant improvements:
 
-- **Professional CLI**: Modern argument parsing with help system
-- **Advanced Algorithms**: Sophisticated pattern detection and removal
-- **Robust Processing**: Comprehensive error handling and graceful degradation
-- **User Experience**: Clear feedback, progress indication, and statistics
+- **Configurable Processing**: Users can now customize signature detection parameters
+- **Professional CLI**: Modern argument parsing with comprehensive help and examples
+- **Advanced Algorithms**: Sophisticated pattern detection with user-controlled thresholds
+- **Robust Processing**: Comprehensive error handling and input validation
+- **User Experience**: Clear feedback, progress indication, parameter display, and statistics
 - **Modular Architecture**: Clean separation of concerns and reusable components
 - **Production Ready**: Handles edge cases, provides diagnostics, and maintains data integrity
+- **Flexible Usage**: Adaptable to different document types and user requirements
 
-The signature filter feature makes this script particularly valuable for processing documents with repetitive elements like legal documents, academic papers, or corporate reports where headers, footers, and signature blocks can clutter the extracted text.
+The configurable signature filter feature makes this script particularly valuable for processing various document types, allowing users to fine-tune the detection algorithm based on their specific needs and document characteristics.
