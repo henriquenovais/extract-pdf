@@ -225,7 +225,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract text from a PDF file and save it to a text file.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Example: python3 extract-as-text.py document.pdf --signature-filter"
+        epilog="""
+            Examples:
+            python3 extract-as-text.py document.pdf
+            python3 extract-as-text.py document.pdf --signature-filter
+            python3 extract-as-text.py document.pdf --signature-filter --min-length 30
+        """
     )
     parser.add_argument(
         'pdf_file',
@@ -237,9 +242,22 @@ def main():
         action='store_true',
         help='Enable signature filter: removes text patterns that appear on 20+ consecutive pages (like headers/footers/signatures)'
     )
+    parser.add_argument(
+        '--min-length',
+        '-ml',
+        type=int,
+        default=20,
+        help='Minimum length of text to be considered a signature pattern (default: 20)'
+    )
     
     args = parser.parse_args()
     pdf_path = args.pdf_file
+    min_length = args.min_length
+    
+    # Validate min_length
+    if min_length < 1:
+        print("Error: Minimum length must be at least 1.")
+        sys.exit(1)
     
     try:
         # Extract text from PDF
@@ -248,8 +266,8 @@ def main():
         
         # Apply signature filter if enabled
         if args.signature_filter:
-            print("Applying signature filter...")
-            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20)
+            print(f"Applying signature filter (min length: {min_length})...")
+            page_texts = apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=min_length)
         
         # Format output with page separators
         text = format_output(page_texts, num_pages)
