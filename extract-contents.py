@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 PDF Text Extraction Script
 
@@ -199,9 +198,67 @@ def apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20):
     return filtered_texts
 
 
+def classify_heading_level(line):
+    """
+    Classify the heading level of a line based on various criteria.
+    
+    Args:
+        line (str): The line to classify
+        
+    Returns:
+        int: Heading level (1-6) or 0 if not a heading
+    """
+    line = line.strip()
+    if not line:
+        return 0
+    
+    # Skip very long lines (likely paragraphs)
+    if len(line) > 120:
+        return 0
+    
+    # Skip lines that end with periods (likely sentences)
+    if line.endswith('.') and len(line) > 20:
+        return 0
+    
+    # Skip lines with common paragraph indicators
+    paragraph_indicators = ['the ', 'and ', 'or ', 'but ', 'however', 'therefore', 'in ', 'on ', 'at ', 'for ']
+    if any(line.lower().startswith(indicator) for indicator in paragraph_indicators):
+        return 0
+    
+    # Level 1: Main titles (short, all caps, or contains "course", "chapter", etc.)
+    main_title_keywords = ['course', 'chapter', 'part', 'section', 'module', 'introduction', 'overview', 'conclusion']
+    if (len(line) <= 60 and 
+        (line.isupper() or 
+         any(keyword in line.lower() for keyword in main_title_keywords) or
+         (len(line.split()) <= 6 and not line.endswith(':')))):
+        return 1
+    
+    # Level 2: Major sections (medium length, title case, or ends with colon)
+    if (len(line) <= 80 and 
+        (line.endswith(':') or 
+         (line.istitle() and len(line.split()) <= 8) or
+         (line.isupper() and len(line) <= 40))):
+        return 2
+    
+    # Level 3: Subsections (shorter lines that look like headings)
+    if (len(line) <= 60 and 
+        (len(line.split()) <= 6 or 
+         line.endswith(':') or
+         (not line.endswith('.') and len(line.split()) <= 8))):
+        return 3
+    
+    # Level 4: Minor headings (very short, specific patterns)
+    if (len(line) <= 40 and 
+        len(line.split()) <= 4 and 
+        not line.endswith('.')):
+        return 4
+    
+    return 0
+
+
 def enhance_text_for_markdown(text):
     """
-    Apply basic markdown enhancements to text.
+    Apply markdown enhancements with proper heading hierarchy.
     
     Args:
         text (str): Raw text to enhance
@@ -216,21 +273,23 @@ def enhance_text_for_markdown(text):
     enhanced_lines = []
     
     for line in lines:
+        original_line = line
         line = line.strip()
+        
         if not line:
             enhanced_lines.append('')
             continue
         
-        # Detect potential headings (lines that are all caps, short, or end with colons)
-        if (len(line) < 80 and 
-            (line.isupper() or 
-             line.endswith(':') or 
-             (len(line.split()) <= 8 and not line.endswith('.')))):
-            # Make it a heading (use ## for section headings)
-            enhanced_lines.append(f"## {line}")
+        # Classify heading level
+        heading_level = classify_heading_level(line)
+        
+        if heading_level > 0:
+            # Create markdown heading with appropriate level
+            heading_prefix = '#' * heading_level
+            enhanced_lines.append(f"{heading_prefix} {line}")
         else:
-            # Regular paragraph text
-            enhanced_lines.append(line)
+            # Regular paragraph text - preserve original formatting
+            enhanced_lines.append(original_line.rstrip())
     
     return '\n'.join(enhanced_lines)
 
@@ -258,7 +317,7 @@ def format_output_text(page_texts, num_pages):
 
 def format_output_markdown(page_texts, num_pages, pdf_filename):
     """
-    Format page texts as markdown with proper structure.
+    Format page texts as markdown with proper structure and heading hierarchy.
     
     Args:
         page_texts (list): List of page text strings
@@ -280,10 +339,10 @@ def format_output_markdown(page_texts, num_pages, pdf_filename):
         if page_num > 1:
             result.append("\n---\n")
         
-        # Add page header
-        result.append(f"### Page {page_num}\n")
+        # Add page header as h4 to not interfere with content hierarchy
+        result.append(f"#### Page {page_num}\n")
         
-        # Enhance text with markdown formatting
+        # Enhance text with markdown formatting and proper heading hierarchy
         if page_text and page_text != "[Text extraction failed for this page]":
             enhanced_text = enhance_text_for_markdown(page_text)
             result.append(enhanced_text)
@@ -302,11 +361,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=
         """Examples:
-        python3 extract-as-text.py document.pdf
-        python3 extract-as-text.py document.pdf --format markdown
-        python3 extract-as-text.py document.pdf --signature-filter --format md
-        python3 extract-as-text.py document.pdf --signature-filter --min-length 30 --format text
-        python3 extract-as-text.py document.pdf -sf -ml 25 -mp 10 -f md
+        python3 extract-contents.py document.pdf
+        python3 extract-contents.py document.pdf --format markdown
+        python3 extract-contents.py document.pdf --signature-filter --format md
+        python3 extract-contents.py document.pdf --signature-filter --min-length 30 --format text
+        python3 extract-contents.py document.pdf -sf -ml 25 -mp 10 -f md
         """
     )
     parser.add_argument(
