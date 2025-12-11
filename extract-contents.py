@@ -198,100 +198,34 @@ def apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20):
     return filtered_texts
 
 
-def classify_heading_level(line):
+def clean_text_for_markdown(text):
     """
-    Classify the heading level of a line based on various criteria.
+    Clean text for markdown output without adding headers.
     
     Args:
-        line (str): The line to classify
+        text (str): Raw text to clean
         
     Returns:
-        int: Heading level (1-6) or 0 if not a heading
-    """
-    line = line.strip()
-    if not line:
-        return 0
-    
-    # Skip very long lines (likely paragraphs)
-    if len(line) > 120:
-        return 0
-    
-    # Skip lines that end with periods (likely sentences)
-    if line.endswith('.') and len(line) > 20:
-        return 0
-    
-    # Skip lines with common paragraph indicators
-    paragraph_indicators = ['the ', 'and ', 'or ', 'but ', 'however', 'therefore', 'in ', 'on ', 'at ', 'for ']
-    if any(line.lower().startswith(indicator) for indicator in paragraph_indicators):
-        return 0
-    
-    # Level 1: Main titles (short, all caps, or contains "course", "chapter", etc.)
-    main_title_keywords = ['course', 'chapter', 'part', 'section', 'module', 'introduction', 'overview', 'conclusion']
-    if (len(line) <= 60 and 
-        (line.isupper() or 
-         any(keyword in line.lower() for keyword in main_title_keywords) or
-         (len(line.split()) <= 6 and not line.endswith(':')))):
-        return 1
-    
-    # Level 2: Major sections (medium length, title case, or ends with colon)
-    if (len(line) <= 80 and 
-        (line.endswith(':') or 
-         (line.istitle() and len(line.split()) <= 8) or
-         (line.isupper() and len(line) <= 40))):
-        return 2
-    
-    # Level 3: Subsections (shorter lines that look like headings)
-    if (len(line) <= 60 and 
-        (len(line.split()) <= 6 or 
-         line.endswith(':') or
-         (not line.endswith('.') and len(line.split()) <= 8))):
-        return 3
-    
-    # Level 4: Minor headings (very short, specific patterns)
-    if (len(line) <= 40 and 
-        len(line.split()) <= 4 and 
-        not line.endswith('.')):
-        return 4
-    
-    return 0
-
-
-def enhance_text_for_markdown(text):
-    """
-    Apply markdown enhancements with proper heading hierarchy.
-    
-    Args:
-        text (str): Raw text to enhance
-        
-    Returns:
-        str: Text with markdown formatting applied
+        str: Cleaned text
     """
     if not text or text == "[Text extraction failed for this page]":
         return text
     
     lines = text.split('\n')
-    enhanced_lines = []
+    cleaned_lines = []
     
     for line in lines:
-        original_line = line
-        line = line.strip()
-        
-        if not line:
-            enhanced_lines.append('')
-            continue
-        
-        # Classify heading level
-        heading_level = classify_heading_level(line)
-        
-        if heading_level > 0:
-            # Create markdown heading with appropriate level
-            heading_prefix = '#' * heading_level
-            enhanced_lines.append(f"{heading_prefix} {line}")
-        else:
-            # Regular paragraph text - preserve original formatting
-            enhanced_lines.append(original_line.rstrip())
+        # Strip whitespace but preserve the line structure
+        cleaned_line = line.rstrip()
+        cleaned_lines.append(cleaned_line)
     
-    return '\n'.join(enhanced_lines)
+    # Join lines and clean up excessive empty lines
+    result = '\n'.join(cleaned_lines)
+    
+    # Replace multiple consecutive empty lines with just two (for paragraph separation)
+    result = re.sub(r'\n\s*\n\s*\n+', '\n\n', result)
+    
+    return result.strip()
 
 
 def format_output_text(page_texts, num_pages):
@@ -317,7 +251,7 @@ def format_output_text(page_texts, num_pages):
 
 def format_output_markdown(page_texts, num_pages, pdf_filename):
     """
-    Format page texts as markdown with proper structure and heading hierarchy.
+    Format page texts as markdown with simple structure.
     
     Args:
         page_texts (list): List of page text strings
@@ -339,13 +273,13 @@ def format_output_markdown(page_texts, num_pages, pdf_filename):
         if page_num > 1:
             result.append("\n---\n")
         
-        # Add page header as h4 to not interfere with content hierarchy
-        result.append(f"#### Page {page_num}\n")
+        # Add page header as h2
+        result.append(f"## Page {page_num}\n")
         
-        # Enhance text with markdown formatting and proper heading hierarchy
+        # Clean text without adding automatic headers
         if page_text and page_text != "[Text extraction failed for this page]":
-            enhanced_text = enhance_text_for_markdown(page_text)
-            result.append(enhanced_text)
+            cleaned_text = clean_text_for_markdown(page_text)
+            result.append(cleaned_text)
         else:
             result.append("*[Text extraction failed for this page]*")
         
