@@ -4,6 +4,7 @@ Content Breakdown Script
 
 Breaks down a single markdown or text file into multiple files based on keywords.
 Each keyword creates a separate output file containing all content sections that match.
+The output format automatically matches the input file format.
 """
 
 import sys
@@ -242,18 +243,41 @@ def sanitize_filename(keyword):
     return sanitized.lower()
 
 
+def detect_file_format(file_path):
+    """
+    Detect file format based on file extension.
+    
+    Args:
+        file_path (Path): Path to the input file
+        
+    Returns:
+        tuple: (input_format, output_format, file_extension)
+    """
+    extension = file_path.suffix.lower()
+    
+    if extension in ['.md', '.markdown']:
+        return 'markdown', 'markdown', '.md'
+    else:
+        # Default to text format for all other extensions (.txt, .text, or no extension)
+        return 'text', 'text', '.txt'
+
+
 def main():
     """Main function to handle command-line arguments and execute breakdown."""
     parser = argparse.ArgumentParser(
-        description="Break down a single markdown or text file into multiple files based on keywords.",
+        description="Break down a single markdown or text file into multiple files based on keywords. Output format automatically matches input format.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Examples:
         python3 file-slicer.py slides.md --keywords "AWS,EC2,IAM"
         python3 file-slicer.py slides.txt --keywords-file keywords.txt
-        python3 file-slicer.py slides.md -k "S3,Lambda" --format text --case-sensitive
-        python3 file-slicer.py slides.txt -kf keywords.txt -f md --output-dir output/
-        python3 file-slicer.py slides.txt -kf keywords.txt -f md -o output/
+        python3 file-slicer.py slides.md -k "S3,Lambda" --case-sensitive
+        python3 file-slicer.py slides.txt -kf keywords.txt --output-dir output/
+        python3 file-slicer.py slides.txt -kf keywords.txt -o output/
+        
+        Note: Output format is automatically determined by input file extension:
+        - .md/.markdown files → .md output files
+        - .txt/.text files or other extensions → .txt output files
         """
     )
     
@@ -273,14 +297,6 @@ def main():
         '--keywords-file',
         '-kf',
         help='Path to file containing keywords (one per line)'
-    )
-    
-    parser.add_argument(
-        '--format',
-        '-f',
-        choices=['text', 'txt', 'markdown', 'md'],
-        default='auto',
-        help='Output format: text/txt for plain text, markdown/md for markdown format (default: auto-detect from input)'
     )
     
     parser.add_argument(
@@ -315,19 +331,10 @@ def main():
         print(f"Error: Input file '{args.input_file}' not found.")
         sys.exit(1)
     
-    # Determine input format
-    input_format = 'markdown' if input_path.suffix.lower() in ['.md', '.markdown'] else 'text'
+    # Detect file format based on extension
+    input_format, output_format, file_extension = detect_file_format(input_path)
     
-    # Determine output format
-    if args.format == 'auto':
-        output_format = input_format
-        file_extension = '.md' if output_format == 'markdown' else '.txt'
-    elif args.format in ['md', 'markdown']:
-        output_format = 'markdown'
-        file_extension = '.md'
-    else:  # text, txt
-        output_format = 'text'
-        file_extension = '.txt'
+    print(f"Detected file format: {input_format} → output format: {output_format}")
     
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -407,6 +414,7 @@ def main():
         if files_created > 0:
             print(f"\nSuccessfully created {files_created} file(s) with {total_matches} total matching sections.")
             print(f"Output directory: {output_dir.absolute()}")
+            print(f"Output format: {output_format} ({file_extension} files)")
         else:
             print("\nNo output files created. No keywords had sufficient matches.")
     
