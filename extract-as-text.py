@@ -2,7 +2,7 @@
 """
 PDF Text Extraction Script
 
-Extracts all text from a PDF file and saves it to a text file.
+Extracts all text from a PDF file and saves it to a text or markdown file.
 """
 
 import sys
@@ -199,9 +199,45 @@ def apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20):
     return filtered_texts
 
 
-def format_output(page_texts, num_pages):
+def enhance_text_for_markdown(text):
     """
-    Format page texts with separators for output.
+    Apply basic markdown enhancements to text.
+    
+    Args:
+        text (str): Raw text to enhance
+        
+    Returns:
+        str: Text with markdown formatting applied
+    """
+    if not text or text == "[Text extraction failed for this page]":
+        return text
+    
+    lines = text.split('\n')
+    enhanced_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            enhanced_lines.append('')
+            continue
+        
+        # Detect potential headings (lines that are all caps, short, or end with colons)
+        if (len(line) < 80 and 
+            (line.isupper() or 
+             line.endswith(':') or 
+             (len(line.split()) <= 8 and not line.endswith('.')))):
+            # Make it a heading (use ## for section headings)
+            enhanced_lines.append(f"## {line}")
+        else:
+            # Regular paragraph text
+            enhanced_lines.append(line)
+    
+    return '\n'.join(enhanced_lines)
+
+
+def format_output_text(page_texts, num_pages):
+    """
+    Format page texts with separators for text output.
     
     Args:
         page_texts (list): List of page text strings
@@ -220,23 +256,69 @@ def format_output(page_texts, num_pages):
     return "\n".join(result_pages)
 
 
+def format_output_markdown(page_texts, num_pages, pdf_filename):
+    """
+    Format page texts as markdown with proper structure.
+    
+    Args:
+        page_texts (list): List of page text strings
+        num_pages (int): Total number of pages
+        pdf_filename (str): Original PDF filename for the title
+        
+    Returns:
+        str: Formatted markdown text
+    """
+    # Create document title
+    title = Path(pdf_filename).stem.replace('_', ' ').replace('-', ' ').title()
+    result = [f"# {title}\n"]
+    result.append(f"*Extracted from PDF: {pdf_filename}*\n")
+    result.append(f"*Total pages: {num_pages}*\n")
+    result.append("---\n")
+    
+    for page_num, page_text in enumerate(page_texts, start=1):
+        # Add page break for pages after the first
+        if page_num > 1:
+            result.append("\n---\n")
+        
+        # Add page header
+        result.append(f"### Page {page_num}\n")
+        
+        # Enhance text with markdown formatting
+        if page_text and page_text != "[Text extraction failed for this page]":
+            enhanced_text = enhance_text_for_markdown(page_text)
+            result.append(enhanced_text)
+        else:
+            result.append("*[Text extraction failed for this page]*")
+        
+        result.append("\n")
+    
+    return "\n".join(result)
+
+
 def main():
     """Main function to handle command-line arguments and execute extraction."""
     parser = argparse.ArgumentParser(
-        description="Extract text from a PDF file and save it to a text file.",
+        description="Extract text from a PDF file and save it to a text or markdown file.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=
         """Examples:
         python3 extract-as-text.py document.pdf
-        python3 extract-as-text.py document.pdf --signature-filter
-        python3 extract-as-text.py document.pdf --signature-filter --min-length 30
-        python3 extract-as-text.py document.pdf --signature-filter --min-pages 15
-        python3 extract-as-text.py document.pdf -sf -ml 25 -mp 10
+        python3 extract-as-text.py document.pdf --format markdown
+        python3 extract-as-text.py document.pdf --signature-filter --format md
+        python3 extract-as-text.py document.pdf --signature-filter --min-length 30 --format text
+        python3 extract-as-text.py document.pdf -sf -ml 25 -mp 10 -f md
         """
     )
     parser.add_argument(
         'pdf_file',
         help='Path to the PDF file to extract text from'
+    )
+    parser.add_argument(
+        '--format',
+        '-f',
+        choices=['text', 'txt', 'markdown', 'md'],
+        default='text',
+        help='Output format: text/txt for plain text, markdown/md for markdown format (default: text)'
     )
     parser.add_argument(
         '--signature-filter',
@@ -261,8 +343,17 @@ def main():
     
     args = parser.parse_args()
     pdf_path = args.pdf_file
+    output_format = args.format.lower()
     min_length = args.min_length
     min_pages = args.min_pages
+    
+    # Normalize format aliases
+    if output_format in ['md', 'markdown']:
+        output_format = 'markdown'
+        file_extension = '.md'
+    else:  # text, txt, or default
+        output_format = 'text'
+        file_extension = '.txt'
     
     # Validate arguments
     if min_length < 1:
@@ -283,19 +374,23 @@ def main():
             print(f"Applying signature filter (min length: {min_length}, min consecutive pages: {min_pages})...")
             page_texts = apply_signature_filter(page_texts, min_consecutive_pages=min_pages, min_length=min_length)
         
-        # Format output with page separators
-        text = format_output(page_texts, num_pages)
+        # Format output based on chosen format
+        print(f"Formatting output as {output_format}...")
+        if output_format == 'markdown':
+            formatted_text = format_output_markdown(page_texts, num_pages, Path(pdf_path).name)
+        else:
+            formatted_text = format_output_text(page_texts, num_pages)
         
         # Generate output filename
         pdf_file = Path(pdf_path)
-        output_file = pdf_file.with_suffix('.txt')
+        output_file = pdf_file.with_suffix(file_extension)
         
         # Save extracted text to file
         with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(text)
+            f.write(formatted_text)
         
-        print(f"Successfully extracted text to '{output_file}'")
-        print(f"Extracted {len(text)} characters from the PDF.")
+        print(f"Successfully extracted text to '{output_file}' ({output_format} format)")
+        print(f"Extracted {len(formatted_text)} characters from the PDF.")
         
     except FileNotFoundError as e:
         print(e)
