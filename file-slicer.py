@@ -128,6 +128,7 @@ def normalize_text(text):
 def find_matching_sections(content_by_pages, sentences, case_sensitive=False):
     """
     Find sections that match exactly one sentence with no other significant content.
+    Prioritizes longer, more specific sentences when multiple matches are found.
     
     Args:
         content_by_pages (list): List of (title, content, page_number) tuples
@@ -139,10 +140,14 @@ def find_matching_sections(content_by_pages, sentences, case_sensitive=False):
     """
     matches = defaultdict(list)
     
-    # Prepare sentences for matching
-    search_sentences = []
+    # Prepare sentences for matching - sort by length (longest first) to prioritize specific matches
+    sentence_pairs = []
     for sentence in sentences:
-        search_sentences.append(sentence if case_sensitive else sentence.lower())
+        search_sentence = sentence if case_sensitive else sentence.lower()
+        sentence_pairs.append((sentence, search_sentence))
+    
+    # Sort by length of search sentence (descending) to prioritize longer, more specific matches
+    sentence_pairs.sort(key=lambda x: len(x[1]), reverse=True)
 
     print(f"[INFO] Analyzing {len(content_by_pages)} pages for sentence matches")
     print(f"[INFO] Sentences: {', '.join([s[:50] + '...' if len(s) > 50 else s for s in sentences])}")
@@ -155,14 +160,15 @@ def find_matching_sections(content_by_pages, sentences, case_sensitive=False):
         search_content = content if case_sensitive else content.lower()
         cleaned_content = re.sub(r'\s+', ' ', search_content.strip())
         
-        # Find which sentences appear in this page
+        # Find which sentences appear in this page, prioritizing longer matches
         found_sentences = []
-        for i, search_sentence in enumerate(search_sentences):
+        for original_sentence, search_sentence in sentence_pairs:
             if search_sentence in cleaned_content:
-                found_sentences.append((sentences[i], search_sentence))
+                found_sentences.append((original_sentence, search_sentence))
         
-        # Only proceed if exactly one sentence is found
-        if len(found_sentences) == 1:
+        # If multiple sentences found, prioritize the longest (most specific) one
+        if len(found_sentences) >= 1:
+            # Take the first (longest) match due to our sorting
             original_sentence, search_sentence = found_sentences[0]
             
             # Check if the page contains essentially only this sentence
@@ -188,16 +194,22 @@ def find_matching_sections(content_by_pages, sentences, case_sensitive=False):
                 matches[original_sentence].append((page_header, content, page_num))
                 pages_with_matches += 1
                 sentence_preview = original_sentence[:30] + '...' if len(original_sentence) > 30 else original_sentence
-                print(f"       Page {page_num}: MATCH for '{sentence_preview}'")
+                
+                # Show if multiple sentences were found but we picked the longest
+                if len(found_sentences) > 1:
+                    other_sentences = [s[0][:20] + '...' if len(s[0]) > 20 else s[0] for s in found_sentences[1:]]
+                    print(f"       Page {page_num}: MATCH for '{sentence_preview}' (also found: {', '.join(other_sentences)})")
+                else:
+                    print(f"       Page {page_num}: MATCH for '{sentence_preview}'")
             else:
                 pages_rejected_content += 1
                 sentence_preview = original_sentence[:30] + '...' if len(original_sentence) > 30 else original_sentence
-                print(f"       Page {page_num}: REJECTED '{sentence_preview}' (extra content: '{actual_text[:20]}...')")
-        
-        elif len(found_sentences) > 1:
-            pages_with_multiple_sentences += 1
-            sentence_previews = [s[0][:20] + '...' if len(s[0]) > 20 else s[0] for s in found_sentences]
-            print(f"       Page {page_num}: MULTIPLE sentences found: {', '.join(sentence_previews)}")
+                
+                if len(found_sentences) > 1:
+                    other_sentences = [s[0][:20] + '...' if len(s[0]) > 20 else s[0] for s in found_sentences[1:]]
+                    print(f"       Page {page_num}: REJECTED '{sentence_preview}' (extra content: '{actual_text[:20]}...', also found: {', '.join(other_sentences)})")
+                else:
+                    print(f"       Page {page_num}: REJECTED '{sentence_preview}' (extra content: '{actual_text[:20]}...')")
     
     # Summary
     print(f"\n[SUMMARY] Matching Results:")
