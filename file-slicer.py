@@ -45,7 +45,7 @@ def load_keywords_from_file(keywords_file):
         raise Exception(f"Error reading keywords file: {e}")
 
 
-def parse_content_pages(content, input_format):
+def parse_content_pages(content):
     """
     Parse content into sections based on format.
     
@@ -58,66 +58,29 @@ def parse_content_pages(content, input_format):
     """
     sections = []
     
-    if input_format == 'text':
-        # Parse text format with page separators
-        page_pattern = r'={60,}\nPage (\d+) of \d+\n={60,}\n'
-        pages = re.split(page_pattern, content)
-        
-        # First element is content before first page (usually empty)
-        if pages[0].strip():
-            sections.append(("Introduction", pages[0].strip(), 0))
-        
-        # Process page pairs (page_number, page_content)
-        for i in range(1, len(pages), 2):
-            if i + 1 < len(pages):
-                page_num = int(pages[i])
-                page_content = pages[i + 1].strip()
-                if page_content:
-                    page_header = f"Page {page_num}"
-                    content_body = page_content
-                    
-                    sections.append((page_header, content_body, page_num))
+    # Parse text format with page separators
+    page_pattern = r'.*Page (\d+) of \d+\n'
+    pages = re.split(page_pattern, content)
     
-    else:  # markdown format
-        # Parse markdown format with page headers
-        page_pattern = r'^## Page (\d+)$'
-        lines = content.split('\n')
-        current_page = None
-        current_content = []
-        current_page_header = None
-        
-        for line in lines:
-            page_match = re.match(page_pattern, line)
-            if page_match:
-                # Save previous section if exists
-                if current_page is not None and (current_content or current_page_header):
-                    content_body = '\n'.join(current_content).strip()
-                    if content_body:
-                        page_header = current_page_header or f"Page {current_page}"
-                        sections.append((page_header, content_body, current_page))
+    # First element is content before first page (usually empty)
+    if pages[0].strip():
+        sections.append(("Introduction", pages[0].strip(), 0))
+    
+    # Process page pairs (page_number, page_content)
+    for i in range(1, len(pages), 2):
+        if i + 1 < len(pages):
+            page_num = int(pages[i])
+            page_content = pages[i + 1].strip()
+            if page_content:
+                page_header = f"Page {page_num}"
+                content_body = page_content
                 
-                # Start new section
-                current_page = int(page_match.group(1))
-                current_content = []
-                current_page_header = None
-            elif current_page is not None:
-                # Skip page separators and empty lines at start
-                if line.strip() == '---':
-                    continue
-                elif line.strip():
-                    current_content.append(line)
-        
-        # Don't forget the last section
-        if current_page is not None and (current_content or current_page_header):
-            content_body = '\n'.join(current_content).strip()
-            if content_body:
-                page_header = current_page_header or f"Page {current_page}"
-                sections.append((page_header, content_body, current_page))
+                sections.append((page_header, content_body, page_num))
     
     return sections
 
 
-def find_matching_sections(sections, keywords, case_sensitive=False):
+def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     """
     Find sections that match any of the keywords.
     
@@ -134,7 +97,7 @@ def find_matching_sections(sections, keywords, case_sensitive=False):
     for keyword in keywords:
         search_keyword = keyword if case_sensitive else keyword.lower()
         
-        for title, content, page_num in sections:
+        for title, content, page_num in content_by_pages:
             search_title = title if case_sensitive else title.lower()
             search_content = content if case_sensitive else content.lower()
             
@@ -350,17 +313,17 @@ def main():
             sys.exit(1)
         
         # Parse content into sections
-        print(f"Parsing content as {input_format} format...")
-        sections = parse_content_pages(content, input_format)
-        print(f"Found {len(sections)} content sections.")
+        print(f"Parsing content into pages ...")
+        content_by_pages = parse_content_pages(content)
+        print(f"Found {len(content_by_pages)} content sections.")
         
-        if not sections:
+        if not content_by_pages:
             print("Warning: No content sections found in input file.")
             sys.exit(0)
         
         # Find matching sections for each keyword
         print(f"Searching for keyword matches (case-{'sensitive' if args.case_sensitive else 'insensitive'})...")
-        matches = find_matching_sections(sections, keywords, args.case_sensitive)
+        matches = find_matching_sections(content_by_pages, keywords, args.case_sensitive)
         
         # Generate output files
         files_created = 0
