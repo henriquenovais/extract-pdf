@@ -167,7 +167,7 @@ def apply_signature_filter(page_texts, min_consecutive_pages=20, min_length=20):
     filtered_texts = []
     total_removals = 0
     
-    for page_num, page_text in enumerate(page_texts, start=1):
+    for _, page_text in enumerate(page_texts, start=1):
         if not page_text or page_text == "[Text extraction failed for this page]":
             filtered_texts.append(page_text)
             continue
@@ -243,7 +243,7 @@ def format_output_markdown(page_texts, num_pages, pdf_filename):
             result.append("\n---\n")
         
         # Add page header as h2
-        result.append(f"## Page {page_num}\n")
+        result.append(f"## Page {page_num} of {num_pages}\n")
         
         # Clean text without adding automatic headers
         if page_text and page_text != "[Text extraction failed for this page]":
