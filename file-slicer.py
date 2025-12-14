@@ -66,7 +66,7 @@ def parse_content_pages(content):
     if total_pages_matches:
         number_of_total_pages = max(int(match) for match in total_pages_matches)
 
-    print(f"Total pages is {number_of_total_pages}")
+    print(f"[INFO] Total pages detected: {number_of_total_pages}")
     
     # Parse text format with page separators
     page_pattern = r'.*Page (\d+) of \d+\n'
@@ -85,7 +85,7 @@ def parse_content_pages(content):
                 if number_of_total_pages > 0:
                     page_header = f"Page {page_num} of {number_of_total_pages}"
                 else:
-                    print("Error: could not detect total number of pages.")
+                    print("[ERROR] Could not detect total number of pages")
                     sys.exit(1)
                     
                 content_body = page_content
@@ -144,8 +144,8 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     for keyword in keywords:
         search_keywords.append(keyword if case_sensitive else keyword.lower())
 
-    print(f"Analyzing {len(content_by_pages)} pages for keyword matches...")
-    print(f"Keywords: {', '.join(keywords)}")
+    print(f"[INFO] Analyzing {len(content_by_pages)} pages for keyword matches")
+    print(f"[INFO] Keywords: {', '.join(keywords)}")
     
     pages_with_matches = 0
     pages_with_multiple_keywords = 0
@@ -185,30 +185,30 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
                 len(actual_text) <= 3):
                 matches[original_keyword].append((page_header, content, page_num))
                 pages_with_matches += 1
-                print(f"  Page {page_num}: MATCH for '{original_keyword}'")
+                print(f"       Page {page_num}: MATCH for '{original_keyword}'")
             else:
                 pages_rejected_content += 1
-                print(f"  Page {page_num}: REJECTED '{original_keyword}' (too much extra content: '{actual_text[:20]}...')")
+                print(f"       Page {page_num}: REJECTED '{original_keyword}' (extra content: '{actual_text[:20]}...')")
         
         elif len(found_keywords) > 1:
             pages_with_multiple_keywords += 1
             keyword_names = [kw[0] for kw in found_keywords]
-            print(f"  Page {page_num}: MULTIPLE keywords found: {', '.join(keyword_names)}")
+            print(f"       Page {page_num}: MULTIPLE keywords found: {', '.join(keyword_names)}")
     
     # Summary
-    print(f"\nMatching Summary:")
-    print(f"  Pages analyzed: {len(content_by_pages)}")
-    print(f"  Pages with matches: {pages_with_matches}")
-    print(f"  Pages with multiple keywords: {pages_with_multiple_keywords}")
-    print(f"  Pages rejected (extra content): {pages_rejected_content}")
+    print(f"\n[SUMMARY] Matching Results:")
+    print(f"          Pages analyzed: {len(content_by_pages)}")
+    print(f"          Pages with matches: {pages_with_matches}")
+    print(f"          Pages with multiple keywords: {pages_with_multiple_keywords}")
+    print(f"          Pages rejected (extra content): {pages_rejected_content}")
     
     for keyword in keywords:
         match_count = len(matches[keyword])
         if match_count > 0:
             page_numbers = [str(page_num) for _, _, page_num in matches[keyword]]
-            print(f"  '{keyword}': {match_count} match(es) on pages {', '.join(page_numbers)}")
+            print(f"          '{keyword}': {match_count} match(es) on pages {', '.join(page_numbers)}")
         else:
-            print(f"  '{keyword}': No matches found")
+            print(f"          '{keyword}': No matches found")
     
     return matches
 
@@ -454,20 +454,20 @@ def main():
     
     # Validate input file
     if not input_path.exists():
-        print(f"Error: Input file '{args.input_file}' not found.")
+        print(f"[ERROR] Input file '{args.input_file}' not found")
         sys.exit(1)
     
     # Detect file format based on extension
     input_format, output_format, file_extension = detect_file_format(input_path)
     
-    print(f"Detected file format: {input_format} → output format: {output_format}")
+    print(f"[INFO] Detected file format: {input_format} → output format: {output_format}")
     
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Validate minimum matches
     if args.min_matches < 1:
-        print("Error: Minimum matches must be at least 1.")
+        print("[ERROR] Minimum matches must be at least 1")
         sys.exit(1)
     
     try:
@@ -475,51 +475,52 @@ def main():
         if args.keywords:
             keywords = [normalize_text(k.strip()) for k in args.keywords.split(',') if k.strip()]
             if not keywords:
-                print("Error: No valid keywords provided.")
+                print("[ERROR] No valid keywords provided")
                 sys.exit(1)
         else:
             raw_keywords = load_keywords_from_file(args.keywords_file)
             keywords = [normalize_text(keyword) for keyword in raw_keywords]
         
-        print(f"Loaded {len(keywords)} keyword(s): {', '.join(keywords)}")
+        print(f"[INFO] Loaded {len(keywords)} keyword(s): {', '.join(keywords)}")
         
         # Read input file
-        print(f"Reading input file '{args.input_file}'...")
+        print(f"[INFO] Reading input file '{args.input_file}'")
         with open(input_path, 'r', encoding='utf-8') as f:
             raw_content = f.read()
         
         if not raw_content.strip():
-            print("Error: Input file is empty.")
+            print("[ERROR] Input file is empty")
             sys.exit(1)
         
         # Normalize content before processing
-        print("Normalizing raw content...")
+        print("[INFO] Normalizing raw content")
         content = normalize_text(raw_content)
         
         # Parse content into sections
-        print(f"Parsing content into pages ...")
+        print(f"[INFO] Parsing content into pages")
         parsed_content_by_pages = parse_content_pages(content)
         content_by_pages = parsed_content_by_pages[0]
         number_of_total_pages = parsed_content_by_pages[1] # total number of pages, not used yet
-        print(f"Found {number_of_total_pages} pages.")
+        print(f"[INFO] Found {number_of_total_pages} pages")
         
         if not content_by_pages:
-            print("Warning: No content sections found in input file.")
+            print("[WARNING] No content sections found in input file")
             sys.exit(0)
         
         # Find matching sections for each keyword
-        print(f"Searching for keyword matches (case-{'sensitive' if args.case_sensitive else 'insensitive'})...")
+        print(f"[INFO] Searching for keyword matches (case-{'sensitive' if args.case_sensitive else 'insensitive'})")
         matches = find_matching_sections(content_by_pages, keywords, args.case_sensitive)
         
         # Generate output files
         files_created = 0
         total_matches = 0
         
+        print(f"\n[INFO] Generating output files")
         for keyword in keywords:
             matching_sections = matches[keyword]
             
             if len(matching_sections) < args.min_matches:
-                print(f"Skipping '{keyword}': only {len(matching_sections)} match(es) found (minimum: {args.min_matches})")
+                print(f"       Skipping '{keyword}': only {len(matching_sections)} match(es) found (minimum: {args.min_matches})")
                 continue
             
             # Format content - now passing all_matches for section boundary calculation
@@ -539,26 +540,26 @@ def main():
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(formatted_content)
             
-            print(f"Created '{output_path}' with {len(matching_sections)} matching section(s)")
+            print(f"       Created '{output_path}' with {len(matching_sections)} matching section(s)")
             files_created += 1
             total_matches += len(matching_sections)
         
         # Summary
         if files_created > 0:
-            print(f"\nSuccessfully created {files_created} file(s) with {total_matches} total matching sections.")
-            print(f"Output directory: {output_dir.absolute()}")
-            print(f"Output format: {output_format} ({file_extension} files)")
+            print(f"\n[SUCCESS] Created {files_created} file(s) with {total_matches} total matching sections")
+            print(f"          Output directory: {output_dir.absolute()}")
+            print(f"          Output format: {output_format} ({file_extension} files)")
         else:
-            print("\nNo output files created. No keywords had sufficient matches.")
+            print(f"\n[WARNING] No output files created - no keywords had sufficient matches")
     
     except FileNotFoundError as e:
-        print(e)
+        print(f"[ERROR] {e}")
         sys.exit(1)
     except ValueError as e:
-        print(e)
+        print(f"[ERROR] {e}")
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        print(f"[ERROR] Unexpected error: {e}")
         sys.exit(1)
 
 
