@@ -51,12 +51,22 @@ def parse_content_pages(content):
     
     Args:
         content (str): The input content
-        input_format (str): Format of the input ('text' or 'markdown')
         
     Returns:
-        list: List of tuples (section_title, section_content, page_number)
+        tuple: (sections_list, total_pages)
+            sections_list: List of tuples (section_title, section_content, page_number)
+            number_of_total_pages: Total number of pages in the document
     """
     sections = []
+    number_of_total_pages = 0
+    
+    # Extract total pages from any "Page X of Y" pattern in the content
+    total_pages_pattern = r'.*Page \d+ of (\d+)\n'
+    total_pages_matches = re.findall(total_pages_pattern, content, re.IGNORECASE)
+    if total_pages_matches:
+        number_of_total_pages = max(int(match) for match in total_pages_matches)
+
+    print(f"Total pages is {number_of_total_pages}")
     
     # Parse text format with page separators
     page_pattern = r'.*Page (\d+) of \d+\n'
@@ -72,12 +82,17 @@ def parse_content_pages(content):
             page_num = int(pages[i])
             page_content = pages[i + 1].strip()
             if page_content:
-                page_header = f"Page {page_num} of "
+                if number_of_total_pages > 0:
+                    page_header = f"Page {page_num} of {number_of_total_pages}"
+                else:
+                    print("Error: could not detect total number of pages.")
+                    sys.exit(1)
+                    
                 content_body = page_content
                 
                 sections.append((page_header, content_body, page_num))
     
-    return sections
+    return sections, number_of_total_pages
 
 
 def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
@@ -314,7 +329,9 @@ def main():
         
         # Parse content into sections
         print(f"Parsing content into pages ...")
-        content_by_pages = parse_content_pages(content)
+        parsed_content_by_pages = parse_content_pages(content)
+        content_by_pages = parsed_content_by_pages[0]
+        _ = parsed_content_by_pages[1] # total number of pages, not used yet
         print(f"Found {len(content_by_pages)} content sections.")
         
         if not content_by_pages:
