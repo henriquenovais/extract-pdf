@@ -158,21 +158,89 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     return matches
 
 
-def format_output_content(sections, keyword, output_format, original_filename):
+def format_output_content(sections, keyword, output_format, original_filename, content_by_pages):
     """
-    Format the matching sections for output.
+    Format the matching sections for output with section-based content extraction.
     
     Args:
-        sections (list): List of (title, content, page_number) tuples
+        sections (list): List of (title, content, page_number) tuples for keyword matches
         keyword (str): The keyword that matched these sections
         output_format (str): Output format ('text' or 'markdown')
         original_filename (str): Original filename for reference
+        content_by_pages (list): Complete list of all (title, content, page_number) tuples
         
     Returns:
-        str: Formatted content
+        str: Formatted content including all pages in section ranges
     """
     if not sections:
         return ""
+    
+    # Create a mapping of page numbers to content for easy lookup
+    page_content_map = {page_num: (title, content) for title, content, page_num in content_by_pages}
+    
+    # Get all page numbers sorted
+    all_page_numbers = sorted([page_num for _, _, page_num in content_by_pages if page_num > 0])
+    
+    # Determine section ranges for this keyword
+    section_ranges = []
+    
+    for title, content, page_num in sections:
+        if page_num <= 0:
+            continue
+            
+        # Find the start of this section (current page)
+        section_start = page_num
+        
+        # Find the end of this section (before next keyword section starts)
+        # Look for the next page that contains a different keyword match
+        section_end = None
+        
+        # Get the maximum page number as fallback
+        max_page = max(all_page_numbers) if all_page_numbers else page_num
+        
+        # For now, we'll find the next section by looking at subsequent pages
+        # This is a simplified approach - in a more complex implementation,
+        # you might want to pass information about all keyword matches
+        for next_page in range(page_num + 1, max_page + 1):
+            if next_page in page_content_map:
+                # Check if this page might start a new section
+                # For this implementation, we'll assume each keyword match starts a new section
+                # and continue until we find another keyword or reach the end
+                pass
+        
+        # For this implementation, we'll include pages until the end or a reasonable break
+        # In practice, you might want to pass section boundary information
+        section_end = max_page
+        
+        section_ranges.append((section_start, section_end))
+    
+    # Merge overlapping ranges and sort
+    if section_ranges:
+        section_ranges.sort()
+        merged_ranges = [section_ranges[0]]
+        
+        for start, end in section_ranges[1:]:
+            last_start, last_end = merged_ranges[-1]
+            if start <= last_end + 1:  # Overlapping or adjacent
+                merged_ranges[-1] = (last_start, max(last_end, end))
+            else:
+                merged_ranges.append((start, end))
+        
+        section_ranges = merged_ranges
+    
+    # Collect all pages in the section ranges
+    all_section_pages = []
+    total_pages_included = 0
+    
+    for start_page, end_page in section_ranges:
+        for page_num in range(start_page, end_page + 1):
+            if page_num in page_content_map:
+                title, content = page_content_map[page_num]
+                all_section_pages.append((title, content, page_num))
+                total_pages_included += 1
+    
+    # Sort by page number to maintain order
+    all_section_pages.sort(key=lambda x: x[2])
     
     if output_format == 'markdown':
         # Markdown format
@@ -180,9 +248,13 @@ def format_output_content(sections, keyword, output_format, original_filename):
         result.append(f"*Extracted from: {original_filename}*\n")
         result.append(f"*Keyword: {keyword}*\n")
         result.append(f"*Matching sections: {len(sections)}*\n")
+        result.append(f"*Total pages included: {total_pages_included}*\n")
+        if section_ranges:
+            range_str = ", ".join([f"{start}-{end}" for start, end in section_ranges])
+            result.append(f"*Page ranges: {range_str}*\n")
         result.append("---\n")
         
-        for i, (title, content, page_num) in enumerate(sections, 1):
+        for i, (title, content, page_num) in enumerate(all_section_pages, 1):
             if i > 1:
                 result.append("\n---\n")
             
@@ -202,9 +274,13 @@ def format_output_content(sections, keyword, output_format, original_filename):
         result.append(f"CONTENT BREAKDOWN FOR KEYWORD: {keyword.upper()}")
         result.append(f"Source: {original_filename}")
         result.append(f"Matching sections: {len(sections)}")
+        result.append(f"Total pages included: {total_pages_included}")
+        if section_ranges:
+            range_str = ", ".join([f"{start}-{end}" for start, end in section_ranges])
+            result.append(f"Page ranges: {range_str}")
         result.append(f"{separator}\n")
         
-        for i, (title, content, page_num) in enumerate(sections, 1):
+        for i, (title, content, page_num) in enumerate(all_section_pages, 1):
             if i > 1:
                 result.append(f"\n{'-' * 40}\n")
             
@@ -390,7 +466,7 @@ def main():
             
             # Format content
             formatted_content = format_output_content(
-                matching_sections, keyword, output_format, input_path.name
+                matching_sections, keyword, output_format, input_path.name, content_by_pages
             )
             
             if not formatted_content.strip():
