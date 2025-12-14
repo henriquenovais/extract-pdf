@@ -13,6 +13,7 @@ import argparse
 from pathlib import Path
 import re
 from collections import defaultdict
+from unidecode import unidecode
 
 
 def load_keywords_from_file(keywords_file):
@@ -94,6 +95,25 @@ def parse_content_pages(content):
     
     return sections, number_of_total_pages
 
+def normalize_text(text):
+    """Normalize text by replacing common character variations using unidecode."""
+
+    # First apply unidecode to handle Unicode normalization
+    # This converts Unicode characters to their ASCII equivalents
+    text = unidecode(text)
+    
+    # Additional custom normalizations for common variations
+    # Normalize ampersand variations
+    text = re.sub(r'\s+&\s+', ' and ', text)  # " & " → " and "
+    text = re.sub(r'&', 'and', text)  # remaining "&" → "and"
+    
+    # Normalize different types of quotes (in case unidecode didn't catch them)
+    text = re.sub(r'[""''`]', '"', text)  # smart quotes → regular quotes
+    
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
 
 def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     """
