@@ -333,11 +333,8 @@ def format_output_content(sections, sentence, output_format, original_filename, 
             if i > 0:  # Add separator between pages (but not before first page)
                 result.append("---\n")
             
-            result.append(f"## {title}")
-            if page_num > 0:
-                result.append(f"*Page {page_num}*\n")
-            else:
-                result.append("")
+            # Use the title as-is (it already contains "Page X of Y")
+            result.append(f"## {title}\n")
             
             # Clean up content - remove extra newlines and whitespace
             cleaned_content = content.strip()
@@ -363,9 +360,9 @@ def format_output_content(sections, sentence, output_format, original_filename, 
             if i > 0:  # Add separator between pages (but not before first page)
                 result.append(f"\n{'-' * 40}\n")
             
-            page_info = f" (Page {page_num})" if page_num > 0 else ""
-            result.append(f"{title}{page_info}")
-            result.append("-" * len(f"{title}{page_info}"))
+            # Use the title as-is (it already contains "Page X of Y")
+            result.append(f"{title}")
+            result.append("-" * len(title))
             
             # Clean up content - remove extra newlines and whitespace
             cleaned_content = content.strip()
