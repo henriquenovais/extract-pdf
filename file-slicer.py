@@ -123,9 +123,6 @@ def normalize_text(text):
     text = re.sub(r'®', '(R)', text)
     text = re.sub(r'™', '(TM)', text)
     
-    # Normalize whitespace (including non-breaking spaces)
-    text = re.sub(r'\s+', ' ', text)
-    
     return text.strip()
 
 def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
@@ -478,8 +475,8 @@ def main():
         print(f"Parsing content into pages ...")
         parsed_content_by_pages = parse_content_pages(content)
         content_by_pages = parsed_content_by_pages[0]
-        _ = parsed_content_by_pages[1] # total number of pages, not used yet
-        print(f"Found {len(content_by_pages)} content sections.")
+        number_of_total_pages = parsed_content_by_pages[1] # total number of pages, not used yet
+        print(f"Found {number_of_total_pages} pages.")
         
         if not content_by_pages:
             print("Warning: No content sections found in input file.")
