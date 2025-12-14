@@ -72,7 +72,7 @@ def parse_content_pages(content):
             page_num = int(pages[i])
             page_content = pages[i + 1].strip()
             if page_content:
-                page_header = f"Page {page_num}"
+                page_header = f"Page {page_num} of "
                 content_body = page_content
                 
                 sections.append((page_header, content_body, page_num))
