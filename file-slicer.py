@@ -143,11 +143,16 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     search_keywords = []
     for keyword in keywords:
         search_keywords.append(keyword if case_sensitive else keyword.lower())
+
+    print(f"Analyzing {len(content_by_pages)} pages for keyword matches...")
+    print(f"Keywords: {', '.join(keywords)}")
     
-    for page_header, content, page_num in content_by_pages:
+    pages_with_matches = 0
+    pages_with_multiple_keywords = 0
+    pages_rejected_content = 0
+    
+    for page_idx, (page_header, content, page_num) in enumerate(content_by_pages, 1):
         search_content = content if case_sensitive else content.lower()
-        
-        # Clean the content for analysis - remove extra whitespace and common formatting
         cleaned_content = re.sub(r'\s+', ' ', search_content.strip())
         
         # Find which keywords appear in this page
@@ -161,29 +166,49 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
             original_keyword, search_keyword = found_keywords[0]
             
             # Check if the page contains essentially only this keyword
-            # Remove the keyword from content and check what remains
             remaining_content = cleaned_content
             
             # Remove all occurrences of the keyword
             if case_sensitive:
                 remaining_content = remaining_content.replace(original_keyword, '')
             else:
-                # Case-insensitive replacement
                 remaining_content = re.sub(re.escape(search_keyword), '', remaining_content, flags=re.IGNORECASE)
             
             # Clean up remaining content - remove extra whitespace
             remaining_content = re.sub(r'\s+', ' ', remaining_content.strip())
             
-            # Check if remaining content is minimal (only whitespace, punctuation, or very short)
-            # Allow for minor formatting characters, page numbers, etc.
+            # Check if remaining content is minimal
             minimal_content_pattern = r'^[\s\-_=\.\,\;\:\!\?\(\)\[\]\{\}]*$'
-            
-            # Also allow very short remaining content (less than 10 characters of actual text)
             actual_text = re.sub(r'[^\w]', '', remaining_content)
             
             if (re.match(minimal_content_pattern, remaining_content) or 
-                len(actual_text) <= 3):  # Allow up to 3 characters of remaining text
+                len(actual_text) <= 3):
                 matches[original_keyword].append((page_header, content, page_num))
+                pages_with_matches += 1
+                print(f"  Page {page_num}: MATCH for '{original_keyword}'")
+            else:
+                pages_rejected_content += 1
+                print(f"  Page {page_num}: REJECTED '{original_keyword}' (too much extra content: '{actual_text[:20]}...')")
+        
+        elif len(found_keywords) > 1:
+            pages_with_multiple_keywords += 1
+            keyword_names = [kw[0] for kw in found_keywords]
+            print(f"  Page {page_num}: MULTIPLE keywords found: {', '.join(keyword_names)}")
+    
+    # Summary
+    print(f"\nMatching Summary:")
+    print(f"  Pages analyzed: {len(content_by_pages)}")
+    print(f"  Pages with matches: {pages_with_matches}")
+    print(f"  Pages with multiple keywords: {pages_with_multiple_keywords}")
+    print(f"  Pages rejected (extra content): {pages_rejected_content}")
+    
+    for keyword in keywords:
+        match_count = len(matches[keyword])
+        if match_count > 0:
+            page_numbers = [str(page_num) for _, _, page_num in matches[keyword]]
+            print(f"  '{keyword}': {match_count} match(es) on pages {', '.join(page_numbers)}")
+        else:
+            print(f"  '{keyword}': No matches found")
     
     return matches
 
