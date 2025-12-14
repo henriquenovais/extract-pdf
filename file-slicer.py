@@ -110,7 +110,21 @@ def normalize_text(text):
     # Normalize different types of quotes (in case unidecode didn't catch them)
     text = re.sub(r'[""''`]', '"', text)  # smart quotes → regular quotes
     
-    # Normalize whitespace
+    # Normalize different types of dashes and hyphens
+    text = re.sub(r'[—–−]', '-', text)  # em dash, en dash, minus → hyphen
+    
+    # Normalize ellipsis
+    text = re.sub(r'…', '...', text)  # ellipsis character → three dots
+    
+    # Normalize bullet points and list markers
+    text = re.sub(r'[•·‣⁃]', '*', text)  # various bullets → asterisk
+    
+    # Normalize copyright and trademark symbols
+    text = re.sub(r'©', '(c)', text)
+    text = re.sub(r'®', '(R)', text)
+    text = re.sub(r'™', '(TM)', text)
+    
+    # Normalize whitespace (including non-breaking spaces)
     text = re.sub(r'\s+', ' ', text)
     
     return text.strip()
