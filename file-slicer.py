@@ -97,10 +97,10 @@ def parse_content_pages(content):
 
 def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     """
-    Find sections that match any of the keywords.
+    Find sections that match exactly one keyword with no other significant content.
     
     Args:
-        sections (list): List of (title, content, page_number) tuples
+        content_by_pages (list): List of (title, content, page_number) tuples
         keywords (list): List of keywords to search for
         case_sensitive (bool): Whether to perform case-sensitive matching
         
@@ -109,15 +109,51 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     """
     matches = defaultdict(list)
     
+    # Prepare keywords for matching
+    search_keywords = []
     for keyword in keywords:
-        search_keyword = keyword if case_sensitive else keyword.lower()
+        search_keywords.append(keyword if case_sensitive else keyword.lower())
+    
+    for page_header, content, page_num in content_by_pages:
+        search_content = content if case_sensitive else content.lower()
         
-        for page_header, content, page_num in content_by_pages:
-            search_content = content if case_sensitive else content.lower()
+        # Clean the content for analysis - remove extra whitespace and common formatting
+        cleaned_content = re.sub(r'\s+', ' ', search_content.strip())
+        
+        # Find which keywords appear in this page
+        found_keywords = []
+        for i, search_keyword in enumerate(search_keywords):
+            if search_keyword in cleaned_content:
+                found_keywords.append((keywords[i], search_keyword))
+        
+        # Only proceed if exactly one keyword is found
+        if len(found_keywords) == 1:
+            original_keyword, search_keyword = found_keywords[0]
             
-            # Check if keyword appears in title or content
-            if search_keyword in search_content:
-                matches[keyword].append((page_header, content, page_num))
+            # Check if the page contains essentially only this keyword
+            # Remove the keyword from content and check what remains
+            remaining_content = cleaned_content
+            
+            # Remove all occurrences of the keyword
+            if case_sensitive:
+                remaining_content = remaining_content.replace(original_keyword, '')
+            else:
+                # Case-insensitive replacement
+                remaining_content = re.sub(re.escape(search_keyword), '', remaining_content, flags=re.IGNORECASE)
+            
+            # Clean up remaining content - remove extra whitespace
+            remaining_content = re.sub(r'\s+', ' ', remaining_content.strip())
+            
+            # Check if remaining content is minimal (only whitespace, punctuation, or very short)
+            # Allow for minor formatting characters, page numbers, etc.
+            minimal_content_pattern = r'^[\s\-_=\.\,\;\:\!\?\(\)\[\]\{\}]*$'
+            
+            # Also allow very short remaining content (less than 10 characters of actual text)
+            actual_text = re.sub(r'[^\w]', '', remaining_content)
+            
+            if (re.match(minimal_content_pattern, remaining_content) or 
+                len(actual_text) <= 3):  # Allow up to 3 characters of remaining text
+                matches[original_keyword].append((page_header, content, page_num))
     
     return matches
 
