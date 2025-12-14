@@ -112,13 +112,12 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
     for keyword in keywords:
         search_keyword = keyword if case_sensitive else keyword.lower()
         
-        for title, content, page_num in content_by_pages:
-            search_title = title if case_sensitive else title.lower()
+        for page_header, content, page_num in content_by_pages:
             search_content = content if case_sensitive else content.lower()
             
             # Check if keyword appears in title or content
-            if search_keyword in search_title or search_keyword in search_content:
-                matches[keyword].append((title, content, page_num))
+            if search_keyword in search_content:
+                matches[keyword].append((page_header, content, page_num))
     
     return matches
 
