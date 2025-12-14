@@ -45,7 +45,7 @@ def load_keywords_from_file(keywords_file):
         raise Exception(f"Error reading keywords file: {e}")
 
 
-def parse_content_sections(content, input_format):
+def parse_content_pages(content, input_format):
     """
     Parse content into sections based on format.
     
@@ -73,62 +73,46 @@ def parse_content_sections(content, input_format):
                 page_num = int(pages[i])
                 page_content = pages[i + 1].strip()
                 if page_content:
-                    # Use first line as title if it looks like a heading
-                    lines = page_content.split('\n')
-                    first_line = lines[0].strip()
+                    page_header = f"Page {page_num}"
+                    content_body = page_content
                     
-                    # Check if first line is a potential title
-                    if (len(first_line) < 100 and 
-                        (first_line.isupper() or 
-                         first_line.endswith(':') or 
-                         len(first_line.split()) <= 10)):
-                        title = first_line
-                        content_body = '\n'.join(lines[1:]).strip()
-                    else:
-                        title = f"Page {page_num}"
-                        content_body = page_content
-                    
-                    sections.append((title, content_body, page_num))
+                    sections.append((page_header, content_body, page_num))
     
     else:  # markdown format
         # Parse markdown format with page headers
-        page_pattern = r'^### Page (\d+)$'
+        page_pattern = r'^## Page (\d+)$'
         lines = content.split('\n')
         current_page = None
         current_content = []
-        current_title = None
+        current_page_header = None
         
         for line in lines:
             page_match = re.match(page_pattern, line)
             if page_match:
                 # Save previous section if exists
-                if current_page is not None and (current_content or current_title):
+                if current_page is not None and (current_content or current_page_header):
                     content_body = '\n'.join(current_content).strip()
                     if content_body:
-                        title = current_title or f"Page {current_page}"
-                        sections.append((title, content_body, current_page))
+                        page_header = current_page_header or f"Page {current_page}"
+                        sections.append((page_header, content_body, current_page))
                 
                 # Start new section
                 current_page = int(page_match.group(1))
                 current_content = []
-                current_title = None
+                current_page_header = None
             elif current_page is not None:
                 # Skip page separators and empty lines at start
                 if line.strip() == '---':
                     continue
-                
-                # Look for potential title (markdown heading)
-                if line.startswith('## ') and not current_title:
-                    current_title = line[3:].strip()
                 elif line.strip():
                     current_content.append(line)
         
         # Don't forget the last section
-        if current_page is not None and (current_content or current_title):
+        if current_page is not None and (current_content or current_page_header):
             content_body = '\n'.join(current_content).strip()
             if content_body:
-                title = current_title or f"Page {current_page}"
-                sections.append((title, content_body, current_page))
+                page_header = current_page_header or f"Page {current_page}"
+                sections.append((page_header, content_body, current_page))
     
     return sections
 
@@ -367,7 +351,7 @@ def main():
         
         # Parse content into sections
         print(f"Parsing content as {input_format} format...")
-        sections = parse_content_sections(content, input_format)
+        sections = parse_content_pages(content, input_format)
         print(f"Found {len(sections)} content sections.")
         
         if not sections:
