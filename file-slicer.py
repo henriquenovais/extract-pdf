@@ -8,7 +8,6 @@ The output format automatically matches the input file format.
 """
 
 import sys
-import os
 import argparse
 from pathlib import Path
 import re
