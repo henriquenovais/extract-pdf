@@ -306,7 +306,8 @@ def format_output_content(sections, sentence, output_format, original_filename, 
     
     if output_format == 'markdown':
         # Markdown format
-        result = [f"# {sentence_title.title()} - Content Breakdown\n"]
+        result = []
+        result.append(f"# {sentence_title.title()} - Content Breakdown\n")
         result.append(f"*Extracted from: {original_filename}*\n")
         result.append(f"*Sentence: {sentence}*\n")
         result.append(f"*Matching sections: {len(sections)}*\n")
@@ -316,9 +317,9 @@ def format_output_content(sections, sentence, output_format, original_filename, 
             result.append(f"*Page ranges: {range_str}*\n")
         result.append("---\n")
         
-        for i, (title, content, page_num) in enumerate(all_section_pages, 1):
-            if i > 1:
-                result.append("\n---\n")
+        for i, (title, content, page_num) in enumerate(all_section_pages):
+            if i > 0:  # Add separator between pages (but not before first page)
+                result.append("---\n")
             
             result.append(f"## {title}")
             if page_num > 0:
@@ -326,8 +327,11 @@ def format_output_content(sections, sentence, output_format, original_filename, 
             else:
                 result.append("")
             
-            result.append(content)
-            result.append("\n")
+            # Clean up content - remove extra newlines and whitespace
+            cleaned_content = content.strip()
+            if cleaned_content:
+                result.append(cleaned_content)
+            result.append("")  # Single newline after content
     
     else:
         # Text format
@@ -343,15 +347,19 @@ def format_output_content(sections, sentence, output_format, original_filename, 
             result.append(f"Page ranges: {range_str}")
         result.append(f"{separator}\n")
         
-        for i, (title, content, page_num) in enumerate(all_section_pages, 1):
-            if i > 1:
+        for i, (title, content, page_num) in enumerate(all_section_pages):
+            if i > 0:  # Add separator between pages (but not before first page)
                 result.append(f"\n{'-' * 40}\n")
             
             page_info = f" (Page {page_num})" if page_num > 0 else ""
             result.append(f"{title}{page_info}")
             result.append("-" * len(f"{title}{page_info}"))
-            result.append(content)
-            result.append("")
+            
+            # Clean up content - remove extra newlines and whitespace
+            cleaned_content = content.strip()
+            if cleaned_content:
+                result.append(cleaned_content)
+            result.append("")  # Single newline after content
     
     return "\n".join(result)
 
