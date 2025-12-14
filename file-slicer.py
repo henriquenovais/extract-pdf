@@ -2,8 +2,8 @@
 """
 Content Breakdown Script
 
-Breaks down a single markdown or text file into multiple files based on keywords.
-Each keyword creates a separate output file containing all content sections that match.
+Breaks down a single markdown or text file into multiple files based on sentences.
+Each sentence creates a separate output file containing all content sections that match.
 The output format automatically matches the input file format.
 """
 
@@ -15,34 +15,34 @@ from collections import defaultdict
 from unidecode import unidecode
 
 
-def load_keywords_from_file(keywords_file):
+def load_sentences_from_file(sentences_file):
     """
-    Load keywords from a file (one keyword per line).
+    Load sentences from a file (one sentence per line).
     
     Args:
-        keywords_file (str): Path to the keywords file
+        sentences_file (str): Path to the sentences file
         
     Returns:
-        list: List of keywords (stripped and non-empty)
+        list: List of sentences (stripped and non-empty)
         
     Raises:
-        FileNotFoundError: If the keywords file doesn't exist
+        FileNotFoundError: If the sentences file doesn't exist
     """
-    keywords_path = Path(keywords_file)
+    sentences_path = Path(sentences_file)
     
-    if not keywords_path.exists():
-        raise FileNotFoundError(f"Error: Keywords file '{keywords_file}' not found.")
+    if not sentences_path.exists():
+        raise FileNotFoundError(f"Error: Sentences file '{sentences_file}' not found.")
     
     try:
-        with open(keywords_path, 'r', encoding='utf-8') as f:
-            keywords = [line.strip() for line in f if line.strip()]
+        with open(sentences_path, 'r', encoding='utf-8') as f:
+            sentences = [line.strip() for line in f if line.strip()]
         
-        if not keywords:
-            raise ValueError(f"Error: Keywords file '{keywords_file}' is empty or contains no valid keywords.")
+        if not sentences:
+            raise ValueError(f"Error: Sentences file '{sentences_file}' is empty or contains no valid sentences.")
         
-        return keywords
+        return sentences
     except Exception as e:
-        raise Exception(f"Error reading keywords file: {e}")
+        raise Exception(f"Error reading sentences file: {e}")
 
 
 def parse_content_pages(content):
@@ -125,54 +125,54 @@ def normalize_text(text):
     
     return text.strip()
 
-def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
+def find_matching_sections(content_by_pages, sentences, case_sensitive=False):
     """
-    Find sections that match exactly one keyword with no other significant content.
+    Find sections that match exactly one sentence with no other significant content.
     
     Args:
         content_by_pages (list): List of (title, content, page_number) tuples
-        keywords (list): List of keywords to search for
+        sentences (list): List of sentences to search for
         case_sensitive (bool): Whether to perform case-sensitive matching
         
     Returns:
-        dict: Dictionary mapping keywords to lists of matching sections
+        dict: Dictionary mapping sentences to lists of matching sections
     """
     matches = defaultdict(list)
     
-    # Prepare keywords for matching
-    search_keywords = []
-    for keyword in keywords:
-        search_keywords.append(keyword if case_sensitive else keyword.lower())
+    # Prepare sentences for matching
+    search_sentences = []
+    for sentence in sentences:
+        search_sentences.append(sentence if case_sensitive else sentence.lower())
 
-    print(f"[INFO] Analyzing {len(content_by_pages)} pages for keyword matches")
-    print(f"[INFO] Keywords: {', '.join(keywords)}")
+    print(f"[INFO] Analyzing {len(content_by_pages)} pages for sentence matches")
+    print(f"[INFO] Sentences: {', '.join([s[:50] + '...' if len(s) > 50 else s for s in sentences])}")
     
     pages_with_matches = 0
-    pages_with_multiple_keywords = 0
+    pages_with_multiple_sentences = 0
     pages_rejected_content = 0
     
     for page_idx, (page_header, content, page_num) in enumerate(content_by_pages, 1):
         search_content = content if case_sensitive else content.lower()
         cleaned_content = re.sub(r'\s+', ' ', search_content.strip())
         
-        # Find which keywords appear in this page
-        found_keywords = []
-        for i, search_keyword in enumerate(search_keywords):
-            if search_keyword in cleaned_content:
-                found_keywords.append((keywords[i], search_keyword))
+        # Find which sentences appear in this page
+        found_sentences = []
+        for i, search_sentence in enumerate(search_sentences):
+            if search_sentence in cleaned_content:
+                found_sentences.append((sentences[i], search_sentence))
         
-        # Only proceed if exactly one keyword is found
-        if len(found_keywords) == 1:
-            original_keyword, search_keyword = found_keywords[0]
+        # Only proceed if exactly one sentence is found
+        if len(found_sentences) == 1:
+            original_sentence, search_sentence = found_sentences[0]
             
-            # Check if the page contains essentially only this keyword
+            # Check if the page contains essentially only this sentence
             remaining_content = cleaned_content
             
-            # Remove all occurrences of the keyword
+            # Remove all occurrences of the sentence
             if case_sensitive:
-                remaining_content = remaining_content.replace(original_keyword, '')
+                remaining_content = remaining_content.replace(original_sentence, '')
             else:
-                remaining_content = re.sub(re.escape(search_keyword), '', remaining_content, flags=re.IGNORECASE)
+                remaining_content = re.sub(re.escape(search_sentence), '', remaining_content, flags=re.IGNORECASE)
             
             # Clean up remaining content - remove extra whitespace
             remaining_content = re.sub(r'\s+', ' ', remaining_content.strip())
@@ -181,49 +181,54 @@ def find_matching_sections(content_by_pages, keywords, case_sensitive=False):
             minimal_content_pattern = r'^[\s\-_=\.\,\;\:\!\?\(\)\[\]\{\}]*$'
             actual_text = re.sub(r'[^\w]', '', remaining_content)
             
+            # For sentences, we need to be more lenient with remaining content
+            # Allow up to 10 characters of actual text (excluding punctuation/whitespace)
             if (re.match(minimal_content_pattern, remaining_content) or 
-                len(actual_text) <= 3):
-                matches[original_keyword].append((page_header, content, page_num))
+                len(actual_text) <= 10):
+                matches[original_sentence].append((page_header, content, page_num))
                 pages_with_matches += 1
-                print(f"       Page {page_num}: MATCH for '{original_keyword}'")
+                sentence_preview = original_sentence[:30] + '...' if len(original_sentence) > 30 else original_sentence
+                print(f"       Page {page_num}: MATCH for '{sentence_preview}'")
             else:
                 pages_rejected_content += 1
-                print(f"       Page {page_num}: REJECTED '{original_keyword}' (extra content: '{actual_text[:20]}...')")
+                sentence_preview = original_sentence[:30] + '...' if len(original_sentence) > 30 else original_sentence
+                print(f"       Page {page_num}: REJECTED '{sentence_preview}' (extra content: '{actual_text[:20]}...')")
         
-        elif len(found_keywords) > 1:
-            pages_with_multiple_keywords += 1
-            keyword_names = [kw[0] for kw in found_keywords]
-            print(f"       Page {page_num}: MULTIPLE keywords found: {', '.join(keyword_names)}")
+        elif len(found_sentences) > 1:
+            pages_with_multiple_sentences += 1
+            sentence_previews = [s[0][:20] + '...' if len(s[0]) > 20 else s[0] for s in found_sentences]
+            print(f"       Page {page_num}: MULTIPLE sentences found: {', '.join(sentence_previews)}")
     
     # Summary
     print(f"\n[SUMMARY] Matching Results:")
     print(f"          Pages analyzed: {len(content_by_pages)}")
     print(f"          Pages with matches: {pages_with_matches}")
-    print(f"          Pages with multiple keywords: {pages_with_multiple_keywords}")
+    print(f"          Pages with multiple sentences: {pages_with_multiple_sentences}")
     print(f"          Pages rejected (extra content): {pages_rejected_content}")
     
-    for keyword in keywords:
-        match_count = len(matches[keyword])
+    for sentence in sentences:
+        match_count = len(matches[sentence])
+        sentence_preview = sentence[:40] + '...' if len(sentence) > 40 else sentence
         if match_count > 0:
-            page_numbers = [str(page_num) for _, _, page_num in matches[keyword]]
-            print(f"          '{keyword}': {match_count} match(es) on pages {', '.join(page_numbers)}")
+            page_numbers = [str(page_num) for _, _, page_num in matches[sentence]]
+            print(f"          '{sentence_preview}': {match_count} match(es) on pages {', '.join(page_numbers)}")
         else:
-            print(f"          '{keyword}': No matches found")
+            print(f"          '{sentence_preview}': No matches found")
     
     return matches
 
 
-def format_output_content(sections, keyword, output_format, original_filename, content_by_pages, all_matches):
+def format_output_content(sections, sentence, output_format, original_filename, content_by_pages, all_matches):
     """
     Format the matching sections for output with section-based content extraction.
     
     Args:
-        sections (list): List of (title, content, page_number) tuples for keyword matches
-        keyword (str): The keyword that matched these sections
+        sections (list): List of (title, content, page_number) tuples for sentence matches
+        sentence (str): The sentence that matched these sections
         output_format (str): Output format ('text' or 'markdown')
         original_filename (str): Original filename for reference
         content_by_pages (list): Complete list of all (title, content, page_number) tuples
-        all_matches (dict): Dictionary of all keyword matches to determine section boundaries
+        all_matches (dict): Dictionary of all sentence matches to determine section boundaries
         
     Returns:
         str: Formatted content including all pages in section ranges
@@ -242,22 +247,22 @@ def format_output_content(sections, keyword, output_format, original_filename, c
     
     max_page = max(all_page_numbers)
     
-    # Collect all section start pages from all keywords to determine boundaries
+    # Collect all section start pages from all sentences to determine boundaries
     all_section_starts = []
-    for kw, kw_sections in all_matches.items():
-        for _, _, page_num in kw_sections:
+    for sent, sent_sections in all_matches.items():
+        for _, _, page_num in sent_sections:
             if page_num > 0:
                 all_section_starts.append(page_num)
     
     all_section_starts = sorted(set(all_section_starts))
     
-    # Determine section ranges for this keyword
+    # Determine section ranges for this sentence
     section_ranges = []
     
-    # Get the starting pages for this keyword's sections
-    keyword_start_pages = sorted([page_num for _, _, page_num in sections if page_num > 0])
+    # Get the starting pages for this sentence's sections
+    sentence_start_pages = sorted([page_num for _, _, page_num in sections if page_num > 0])
     
-    for start_page in keyword_start_pages:
+    for start_page in sentence_start_pages:
         # Find the next section start page that comes after this one
         section_end = max_page  # Default to end of document
         
@@ -296,11 +301,14 @@ def format_output_content(sections, keyword, output_format, original_filename, c
     # Sort by page number to maintain order
     all_section_pages.sort(key=lambda x: x[2])
     
+    # Create a shorter title for display
+    sentence_title = sentence[:50] + '...' if len(sentence) > 50 else sentence
+    
     if output_format == 'markdown':
         # Markdown format
-        result = [f"# {keyword.title()} - Content Breakdown\n"]
+        result = [f"# {sentence_title.title()} - Content Breakdown\n"]
         result.append(f"*Extracted from: {original_filename}*\n")
-        result.append(f"*Keyword: {keyword}*\n")
+        result.append(f"*Sentence: {sentence}*\n")
         result.append(f"*Matching sections: {len(sections)}*\n")
         result.append(f"*Total pages included: {total_pages_included}*\n")
         if section_ranges:
@@ -325,8 +333,9 @@ def format_output_content(sections, keyword, output_format, original_filename, c
         # Text format
         separator = "=" * 60
         result = [f"{separator}"]
-        result.append(f"CONTENT BREAKDOWN FOR KEYWORD: {keyword.upper()}")
+        result.append(f"CONTENT BREAKDOWN FOR SENTENCE: {sentence_title.upper()}")
         result.append(f"Source: {original_filename}")
+        result.append(f"Full sentence: {sentence}")
         result.append(f"Matching sections: {len(sections)}")
         result.append(f"Total pages included: {total_pages_included}")
         if section_ranges:
@@ -346,25 +355,28 @@ def format_output_content(sections, keyword, output_format, original_filename, c
     
     return "\n".join(result)
 
-def sanitize_filename(keyword):
+def sanitize_filename(sentence):
     """
-    Sanitize a keyword to be used as a filename.
+    Sanitize a sentence to be used as a filename.
     
     Args:
-        keyword (str): The keyword to sanitize
+        sentence (str): The sentence to sanitize
         
     Returns:
         str: Sanitized filename
     """
+    # Take first 30 characters to avoid overly long filenames
+    truncated = sentence[:30]
+    
     # Replace spaces and special characters with underscores
-    sanitized = re.sub(r'[^\w\-_.]', '_', keyword)
+    sanitized = re.sub(r'[^\w\-_.]', '_', truncated)
     # Remove multiple consecutive underscores
     sanitized = re.sub(r'_+', '_', sanitized)
     # Remove leading/trailing underscores
     sanitized = sanitized.strip('_')
     # Ensure it's not empty
     if not sanitized:
-        sanitized = "keyword"
+        sanitized = "sentence"
     
     return sanitized.lower()
 
@@ -391,15 +403,15 @@ def detect_file_format(file_path):
 def main():
     """Main function to handle command-line arguments and execute breakdown."""
     parser = argparse.ArgumentParser(
-        description="Break down a single markdown or text file into multiple files based on keywords. Output format automatically matches input format.",
+        description="Break down a single markdown or text file into multiple files based on sentences. Output format automatically matches input format.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Examples:
-        python3 file-slicer.py slides.md --keywords "AWS,EC2,IAM"
-        python3 file-slicer.py slides.txt --keywords-file keywords.txt
-        python3 file-slicer.py slides.md -k "S3,Lambda" --case-sensitive
-        python3 file-slicer.py slides.txt -kf keywords.txt --output-dir output/
-        python3 file-slicer.py slides.txt -kf keywords.txt -o output/
+        python3 file-slicer.py slides.md --sentences "Welcome to AWS,Getting Started with EC2,Introduction to IAM"
+        python3 file-slicer.py slides.txt --sentences-file sentences.txt
+        python3 file-slicer.py slides.md -s "Amazon S3 Overview,AWS Lambda Functions" --case-sensitive
+        python3 file-slicer.py slides.txt -sf sentences.txt --output-dir output/
+        python3 file-slicer.py slides.txt -sf sentences.txt -o output/
         
         Note: Output format is automatically determined by input file extension:
         - .md/.markdown files → .md output files
@@ -412,24 +424,24 @@ def main():
         help='Path to the input file (markdown or text)'
     )
     
-    # Keywords input (mutually exclusive)
-    keywords_group = parser.add_mutually_exclusive_group(required=True)
-    keywords_group.add_argument(
-        '--keywords',
-        '-k',
-        help='Comma-separated list of keywords to search for'
+    # Sentences input (mutually exclusive)
+    sentences_group = parser.add_mutually_exclusive_group(required=True)
+    sentences_group.add_argument(
+        '--sentences',
+        '-s',
+        help='Comma-separated list of sentences to search for'
     )
-    keywords_group.add_argument(
-        '--keywords-file',
-        '-kf',
-        help='Path to file containing keywords (one per line)'
+    sentences_group.add_argument(
+        '--sentences-file',
+        '-sf',
+        help='Path to file containing sentences (one per line)'
     )
     
     parser.add_argument(
         '--case-sensitive',
         '-cs',
         action='store_true',
-        help='Perform case-sensitive keyword matching (default: case-insensitive)'
+        help='Perform case-sensitive sentence matching (default: case-insensitive)'
     )
     
     parser.add_argument(
@@ -471,17 +483,20 @@ def main():
         sys.exit(1)
     
     try:
-        # Load keywords
-        if args.keywords:
-            keywords = [normalize_text(k.strip()) for k in args.keywords.split(',') if k.strip()]
-            if not keywords:
-                print("[ERROR] No valid keywords provided")
+        # Load sentences
+        if args.sentences:
+            sentences = [normalize_text(s.strip()) for s in args.sentences.split(',') if s.strip()]
+            if not sentences:
+                print("[ERROR] No valid sentences provided")
                 sys.exit(1)
         else:
-            raw_keywords = load_keywords_from_file(args.keywords_file)
-            keywords = [normalize_text(keyword) for keyword in raw_keywords]
+            raw_sentences = load_sentences_from_file(args.sentences_file)
+            sentences = [normalize_text(sentence) for sentence in raw_sentences]
         
-        print(f"[INFO] Loaded {len(keywords)} keyword(s): {', '.join(keywords)}")
+        print(f"[INFO] Loaded {len(sentences)} sentence(s)")
+        for i, sentence in enumerate(sentences, 1):
+            preview = sentence[:60] + '...' if len(sentence) > 60 else sentence
+            print(f"       {i}. {preview}")
         
         # Read input file
         print(f"[INFO] Reading input file '{args.input_file}'")
@@ -507,40 +522,42 @@ def main():
             print("[WARNING] No content sections found in input file")
             sys.exit(0)
         
-        # Find matching sections for each keyword
-        print(f"[INFO] Searching for keyword matches (case-{'sensitive' if args.case_sensitive else 'insensitive'})")
-        matches = find_matching_sections(content_by_pages, keywords, args.case_sensitive)
+        # Find matching sections for each sentence
+        print(f"[INFO] Searching for sentence matches (case-{'sensitive' if args.case_sensitive else 'insensitive'})")
+        matches = find_matching_sections(content_by_pages, sentences, args.case_sensitive)
         
         # Generate output files
         files_created = 0
         total_matches = 0
         
         print(f"\n[INFO] Generating output files")
-        for keyword in keywords:
-            matching_sections = matches[keyword]
+        for sentence in sentences:
+            matching_sections = matches[sentence]
             
             if len(matching_sections) < args.min_matches:
-                print(f"       Skipping '{keyword}': only {len(matching_sections)} match(es) found (minimum: {args.min_matches})")
+                sentence_preview = sentence[:40] + '...' if len(sentence) > 40 else sentence
+                print(f"       Skipping '{sentence_preview}': only {len(matching_sections)} match(es) found (minimum: {args.min_matches})")
                 continue
             
             # Format content - now passing all_matches for section boundary calculation
             formatted_content = format_output_content(
-                matching_sections, keyword, output_format, input_path.name, content_by_pages, matches
+                matching_sections, sentence, output_format, input_path.name, content_by_pages, matches
             )
             
             if not formatted_content.strip():
                 continue
             
             # Generate output filename
-            safe_keyword = sanitize_filename(keyword)
-            output_filename = f"{files_created + 1}_{input_path.stem}_{safe_keyword}{file_extension}"
+            safe_sentence = sanitize_filename(sentence)
+            output_filename = f"{files_created + 1}_{input_path.stem}_{safe_sentence}{file_extension}"
             output_path = output_dir / output_filename
             
             # Write output file
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(formatted_content)
             
-            print(f"       Created '{output_path}' with {len(matching_sections)} matching section(s)")
+            sentence_preview = sentence[:40] + '...' if len(sentence) > 40 else sentence
+            print(f"       Created '{output_path}' with {len(matching_sections)} matching section(s) for '{sentence_preview}'")
             files_created += 1
             total_matches += len(matching_sections)
         
@@ -550,7 +567,7 @@ def main():
             print(f"          Output directory: {output_dir.absolute()}")
             print(f"          Output format: {output_format} ({file_extension} files)")
         else:
-            print(f"\n[WARNING] No output files created - no keywords had sufficient matches")
+            print(f"\n[WARNING] No output files created - no sentences had sufficient matches")
     
     except FileNotFoundError as e:
         print(f"[ERROR] {e}")
