@@ -451,23 +451,28 @@ def main():
     try:
         # Load keywords
         if args.keywords:
-            keywords = [k.strip() for k in args.keywords.split(',') if k.strip()]
+            keywords = [normalize_text(k.strip()) for k in args.keywords.split(',') if k.strip()]
             if not keywords:
                 print("Error: No valid keywords provided.")
                 sys.exit(1)
         else:
-            keywords = load_keywords_from_file(args.keywords_file)
+            raw_keywords = load_keywords_from_file(args.keywords_file)
+            keywords = [normalize_text(keyword) for keyword in raw_keywords]
         
         print(f"Loaded {len(keywords)} keyword(s): {', '.join(keywords)}")
         
         # Read input file
         print(f"Reading input file '{args.input_file}'...")
         with open(input_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+            raw_content = f.read()
         
-        if not content.strip():
+        if not raw_content.strip():
             print("Error: Input file is empty.")
             sys.exit(1)
+        
+        # Normalize content before processing
+        print("Normalizing raw content...")
+        content = normalize_text(raw_content)
         
         # Parse content into sections
         print(f"Parsing content into pages ...")
