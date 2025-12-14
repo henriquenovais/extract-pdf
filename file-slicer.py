@@ -472,7 +472,7 @@ def main():
             
             # Generate output filename
             safe_keyword = sanitize_filename(keyword)
-            output_filename = f"{input_path.stem}_{safe_keyword}{file_extension}"
+            output_filename = f"{files_created + 1}_{input_path.stem}_{safe_keyword}{file_extension}"
             output_path = output_dir / output_filename
             
             # Write output file
